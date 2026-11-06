@@ -1,0 +1,3504 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://ydaiqqvlgnviorslllwk.supabase.co wss://ydaiqqvlgnviorslllwk.supabase.co; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta name="referrer" content="no-referrer">
+<script src="config.js"></script>
+<script src="auth-sync.js"></script>
+<title>Paso 1 · Carga y Validación · Data Maestra</title>
+<style>
+  :root{
+    --navy-deep:#0B1220; --navy-panel:#121C30; --navy-line:#22324f;
+    --signal-teal:#00D9C0; --signal-teal-dim:#0B8F80;
+    --critico:#FF5470; --critico-bg:#FFE7EC;
+    --ok:#2BBE83; --ok-bg:#E4F8EE;
+    --warn:#FFB454; --warn-bg:#FFF3DD;
+    --ink:#1B2333; --ink-soft:#5B6478;
+    --paper:#F4F6FA; --paper-card:#FFFFFF; --border:#E1E5EE;
+    --mono: ui-monospace,"SF Mono","Cascadia Mono",Consolas,"Liberation Mono",monospace;
+    --sans: -apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);height:100%;}
+  body{display:flex;flex-direction:column;min-height:100vh;}
+  button{font-family:var(--sans);cursor:pointer;}
+  :focus-visible{outline:2px solid var(--signal-teal);outline-offset:2px;}
+  @media (prefers-reduced-motion: reduce){*{animation:none !important;transition:none !important;}}
+
+  header.topbar{
+    background:linear-gradient(135deg,var(--navy-deep) 0%,var(--navy-panel) 55%,#0E1830 100%);
+    color:#E7ECF5;padding:14px 28px;display:flex;align-items:center;justify-content:space-between;
+    gap:24px;border-bottom:1px solid var(--navy-line);flex-shrink:0;position:relative;overflow:hidden;
+  }
+  header.topbar::before{ /* línea de acento animada, estilo "scan" futurista */
+    content:"";position:absolute;left:0;right:0;bottom:0;height:2px;
+    background:linear-gradient(90deg,transparent,var(--signal-teal) 20%,#7CF7E8 50%,var(--signal-teal) 80%,transparent);
+    background-size:220% 100%;animation:scanline 5s linear infinite;opacity:.85;
+  }
+  @keyframes scanline{0%{background-position:0% 0;}100%{background-position:220% 0;}}
+  .brand{display:flex;align-items:center;gap:14px;position:relative;z-index:1;}
+  .brand .ping{width:11px;height:11px;border-radius:50%;background:var(--signal-teal);
+    box-shadow:0 0 0 0 rgba(0,217,192,.6),0 0 10px 1px rgba(0,217,192,.7);animation:pulse 2.2s infinite;flex-shrink:0;}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(0,217,192,.55),0 0 10px 1px rgba(0,217,192,.7);}70%{box-shadow:0 0 0 9px rgba(0,217,192,0),0 0 10px 1px rgba(0,217,192,.7);}100%{box-shadow:0 0 0 0 rgba(0,217,192,0),0 0 10px 1px rgba(0,217,192,.7);}}
+  .brand h1{font-size:15px;margin:0;letter-spacing:.06em;text-transform:uppercase;font-weight:800;
+    background:linear-gradient(90deg,#F4F8FF 0%,#B9F5EC 60%,var(--signal-teal) 100%);
+    -webkit-background-clip:text;background-clip:text;color:transparent;transition:.2s;}
+  .brand .sub{font-size:11px;color:#8FA3C8;margin-top:3px;font-family:var(--mono);letter-spacing:.02em;}
+  .topbar .meta{font-size:12px;color:#AFC0DE;position:relative;z-index:1;}
+  .topbar .meta strong{color:#fff;font-family:var(--mono);}
+
+  main{max-width:1500px;width:100%;margin:0 auto;padding:18px 24px 0;flex:1;display:flex;flex-direction:column;min-height:0;gap:14px;}
+
+  .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;flex-shrink:0;}
+  .card{background:var(--paper-card);border:1px solid var(--border);border-radius:11px;padding:13px;position:relative;overflow:hidden;}
+  .card .label{font-size:10.5px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;font-weight:700;}
+  .card .value{font-family:var(--mono);font-size:22px;font-weight:700;margin-top:3px;color:var(--ink);}
+  @media (max-width:800px){.cards{grid-template-columns:repeat(2,1fr);}}
+
+  #compactBar{display:none !important;align-items:center;gap:14px;background:var(--paper-card);border:1px solid var(--border);
+    border-radius:10px;padding:9px 14px;flex-shrink:0;font-size:12.5px;flex-wrap:wrap;}
+  #compactBar .status-pill{font-weight:700;padding:4px 10px;border-radius:20px;font-size:11.5px;}
+  #compactBar .status-pill.ok{background:var(--ok-bg);color:#176B45;}
+  #compactBar .status-pill.forced{background:var(--warn-bg);color:#7A4E00;}
+  #compactBar .grow{flex:1;}
+  .btn-secondary{background:#fff;border:1px solid var(--border);color:var(--ink);border-radius:8px;padding:8px 14px;font-size:12.5px;font-weight:600;}
+  .btn-secondary:hover{border-color:var(--navy-deep);}
+  .btn-primary{background:var(--navy-deep);color:#fff;border:none;border-radius:8px;padding:9px 18px;
+    font-size:13px;font-weight:700;letter-spacing:.02em;transition:.15s;}
+  .btn-primary:hover{background:var(--signal-teal-dim);}
+  .btn-primary:disabled{opacity:.45;cursor:not-allowed;}
+  .btn-force{background:#8C1232;color:#fff;border:none;border-radius:6px;padding:9px 16px;font-size:13px;font-weight:700;}
+  .btn-cancel{background:#fff;border:1px solid var(--border);color:var(--ink-soft);border-radius:6px;padding:9px 16px;font-size:13px;font-weight:600;}
+
+  /* ---------- tabla maestra tipo hoja de cálculo ---------- */
+  .table-wrap{background:var(--paper-card);border:1px solid var(--border);border-radius:12px;overflow:hidden;
+    display:flex;flex-direction:column;flex:1;min-height:300px;}
+  .table-toolbar{display:none !important;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border);gap:10px;flex-wrap:wrap;flex-shrink:0;}
+  .table-toolbar .hint{font-size:12.5px;color:var(--ink-soft);}
+  .table-toolbar .left-info{display:flex;flex-direction:column;gap:2px;}
+  .table-toolbar .right{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+
+  .table-scroll{overflow:auto;flex:1;min-height:0;position:relative;}
+  table{border-collapse:collapse;width:100%;font-size:11.8px;font-family:var(--mono);}
+  thead th{position:sticky;top:0;background:#15203A;color:#D7E1F7;text-transform:none;font-size:10.5px;
+    letter-spacing:.02em;text-align:left;padding:8px 9px;border-bottom:1px solid var(--navy-line);
+    border-right:1px solid #22324f;white-space:nowrap;font-family:var(--mono);font-weight:700;z-index:4;}
+  thead th.rownum-head{position:sticky;left:0;top:0;z-index:5;background:#0B1220;min-width:38px;text-align:center;}
+
+  tbody td{border-bottom:1px solid #EEF0F5;border-right:1px solid #EEF0F5;padding:0;min-width:108px;max-width:240px;}
+  tbody td.cell{
+    padding:6px 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:cell;
+    position:relative;
+  }
+  tbody td.cell:focus{
+    outline:2px solid var(--signal-teal);outline-offset:-2px;background:#F2FCFB;
+    white-space:normal;overflow:visible;z-index:10;position:relative;
+    min-width:200px;max-width:500px;word-break:break-word;
+    box-shadow:0 4px 18px rgba(11,18,32,.18);
+  }
+  .cell-tooltip{
+    display:none;position:fixed;background:#1B2333;color:#F4F6FA;
+    font-family:var(--mono);font-size:11.5px;padding:8px 11px;border-radius:8px;
+    max-width:380px;word-break:break-word;white-space:pre-wrap;line-height:1.5;
+    box-shadow:0 6px 24px rgba(11,18,32,.35);z-index:1000;pointer-events:none;
+    border:1px solid #33415F;
+  }
+  tbody td.rownum{
+    position:sticky;left:0;background:#F4F6FA;color:var(--ink-soft);text-align:center;font-weight:700;
+    border-right:1px solid var(--border);min-width:38px;z-index:1;user-select:none;
+  }
+  tbody tr:nth-child(even) td.cell{background:#FBFCFE;}
+  tbody tr:nth-child(even) td.rownum{background:#EEF1F8;}
+  tbody tr.header-row td.cell{background:var(--warn-bg) !important;color:#7A4E00;font-weight:700;}
+  tbody tr.header-row td.rownum{background:#FBE6BC;color:#7A4E00;}
+  tbody td.cell.cell-mismatch{outline:2px solid var(--critico);outline-offset:-2px;background:var(--critico-bg) !important;}
+  tbody td.cell.locked{cursor:default;background:#fff;}
+  tbody tr.empty-row td.cell{color:#C7CEDD;}
+
+  footer.note{max-width:1500px;width:100%;margin:0 auto;padding:10px 24px 16px;font-size:11px;color:var(--ink-soft);flex-shrink:0;}
+
+  /* ---------- VENTANA FLOTANTE (MODAL) ---------- */
+  .modal-overlay{
+    position:fixed;inset:0;background:rgba(11,18,32,.55);
+    display:none;align-items:center;justify-content:center;z-index:200;padding:20px;
+    animation:fadeIn .15s ease;
+  }
+  @keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+  .modal-card{
+    background:#fff;border-radius:14px;max-width:580px;width:100%;max-height:85vh;
+    display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(11,18,32,.35);
+    animation:slideUp .18s ease;
+  }
+  @keyframes slideUp{from{transform:translateY(14px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+  .modal-head{padding:20px 22px 0;display:flex;align-items:center;gap:12px;flex-shrink:0;}
+  .modal-head .icon{font-size:26px;line-height:1;}
+  .modal-head h3{margin:0;font-size:16px;}
+  .modal-body{padding:14px 22px 4px;overflow:auto;}
+  .modal-foot{padding:16px 22px 20px;display:flex;justify-content:flex-end;gap:10px;flex-shrink:0;}
+
+  .status-badge{font-size:12px;font-weight:700;padding:5px 12px;border-radius:20px;display:inline-block;}
+  .status-badge.ok{background:var(--ok-bg);color:#176B45;}
+  .status-badge.error{background:var(--critico-bg);color:#8C1232;}
+  .status-badge.forced{background:var(--warn-bg);color:#7A4E00;}
+
+  .modal-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:14px 0 6px;}
+  .modal-cards .mc{background:#FAFBFD;border:1px solid var(--border);border-radius:9px;padding:10px;text-align:center;}
+  .modal-cards .mc .label{font-size:10px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;font-weight:700;}
+  .modal-cards .mc .value{font-family:var(--mono);font-size:19px;font-weight:700;margin-top:3px;}
+
+  .diff-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px;}
+  .diff-col h4{font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);margin:0 0 6px;}
+  .diff-list{font-family:var(--mono);font-size:11.5px;background:#FAFBFD;border:1px solid var(--border);border-radius:8px;
+    padding:8px 10px;max-height:140px;overflow:auto;}
+  .diff-list .item{padding:3px 0;border-bottom:1px dashed #EEF0F5;}
+  .diff-list .item:last-child{border-bottom:none;}
+  .pos-mismatch{display:flex;gap:8px;font-family:var(--mono);font-size:11.5px;padding:4px 0;border-bottom:1px dashed #EEF0F5;flex-wrap:wrap;}
+  .pos-mismatch .idx{color:var(--ink-soft);min-width:34px;}
+  .pos-mismatch .exp{color:#176B45;}
+  .pos-mismatch .got{color:#8C1232;}
+  @media (max-width:520px){.diff-grid{grid-template-columns:1fr;} .modal-cards{grid-template-columns:1fr 1fr;}}
+
+/* ================================================================
+   SIDEBAR + RESPONSIVO — inyectado sin tocar el original
+   ================================================================ */
+html,body{height:100%;overflow:hidden;}
+body{display:flex;flex-direction:column;}
+
+/* ── Wrapper ── */
+#appWrapper{display:flex;flex:1;min-height:0;overflow:hidden;}
+
+/* ── Strip izquierdo (desktop) ── */
+#sideStrip{
+  width:52px;flex-shrink:0;background:var(--navy-deep);
+  display:flex;flex-direction:column;align-items:center;
+  padding-top:14px;gap:6px;border-right:1px solid var(--navy-line);z-index:40;
+}
+.strip-btn{width:40px;height:44px;border-radius:10px;border:none;
+  background:transparent;color:#6E88B0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:3px;cursor:pointer;transition:.15s;padding:0;}
+.strip-btn:hover{background:#1A2A44;color:#C0D0EA;}
+.strip-btn.active{background:#1E3054;color:var(--signal-teal);box-shadow:inset 0 0 0 1px rgba(0,217,192,.35),0 0 10px rgba(0,217,192,.25);}
+.strip-btn .sico{font-size:17px;line-height:1;}
+.strip-btn .slbl{font-size:8px;font-weight:700;letter-spacing:.04em;
+  text-transform:uppercase;font-family:var(--sans);line-height:1;}
+
+
+
+/* Contenidos panel */
+.sb-cards{display:grid;grid-template-columns:1fr 1fr;gap:7px;}
+.sb-card{background:var(--paper);border:1px solid var(--border);border-radius:9px;padding:10px 12px;}
+.sb-card .scl{font-size:10px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;font-weight:700;}
+.sb-card .scv{font-family:var(--mono);font-size:20px;font-weight:700;margin-top:2px;color:var(--ink);}
+.sb-hint{font-size:11.5px;color:var(--ink-soft);line-height:1.55;}
+.sb-pill{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:20px;font-size:11.5px;font-weight:700;}
+.sb-pill.ok{background:var(--ok-bg);color:#176B45;}
+.sb-pill.empty{background:var(--critico-bg);color:#8C1232;}
+.sb-divider{height:1px;background:var(--border);}
+.sb-btn{width:100%;border-radius:8px;padding:9px;font-size:12.5px;font-weight:700;border:none;cursor:pointer;transition:.15s;margin:0;}
+.sb-secondary{background:#fff;border:1px solid var(--border)!important;color:var(--ink);font-weight:600;}
+.sb-secondary:hover{border-color:var(--navy-deep)!important;}
+.sb-danger{background:var(--critico-bg);color:var(--critico);border:1px solid var(--critico)!important;}
+.sb-danger:hover{background:var(--critico);color:#fff;}
+.rpt-slbl{font-size:10px;text-transform:uppercase;letter-spacing:.06em;font-weight:700;color:var(--ink-soft);}
+
+/* Cards dinámicos de estados (estproyecto) */
+.rpt-cards{display:flex;flex-wrap:wrap;gap:7px;}
+.rpt-card{background:var(--paper);border:1.5px solid var(--border);border-radius:9px;
+  padding:9px 13px;cursor:pointer;transition:.15s;position:relative;overflow:hidden;
+  min-width:calc(50% - 4px);flex:1;}
+.rpt-card:hover{border-color:#B0BACC;}
+.rpt-card.cf-active{border-color:var(--signal-teal);background:#F0FDFB;}
+.rpt-card .rcl{font-size:9.5px;color:var(--ink-soft);font-weight:700;text-transform:uppercase;
+  letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.rpt-card .rcv{font-family:var(--mono);font-size:18px;font-weight:700;margin-top:2px;color:var(--ink);}
+.rpt-card::after{content:"";position:absolute;left:0;bottom:0;height:3px;width:100%;background:var(--border);}
+.rpt-card.rc-total::after{background:var(--navy-line);}
+
+.fsel-sb{width:100%;border:1px solid var(--border);border-radius:7px;padding:6px 8px;font-size:12px;color:var(--ink);background:#fff;}
+.finput-sb{width:100%;border:1px solid var(--border);border-radius:7px;padding:6px 8px;font-size:12px;color:var(--ink);background:#fff;}
+.fsel-sb:focus,.finput-sb:focus{outline:2px solid var(--signal-teal);outline-offset:1px;}
+.chips-sb{display:flex;flex-wrap:wrap;gap:5px;}
+.chip-sb{border:1.5px solid var(--border);background:#fff;border-radius:14px;
+  padding:5px 10px;font-size:10.5px;font-weight:700;color:var(--ink-soft);cursor:pointer;transition:.12s;}
+.chip-sb:hover{border-color:#B0BACC;}
+.chip-sb.on{background:var(--navy-deep);color:#fff;border-color:var(--navy-deep);}
+.btn-clr-flt{width:100%;background:#fff;border:1px solid var(--border);color:var(--ink-soft);
+  border-radius:7px;padding:8px;font-size:12px;font-weight:600;cursor:pointer;margin-top:4px;}
+.btn-clr-flt:hover{border-color:var(--critico);color:var(--critico);}
+
+/* ── Área principal ── */
+#mainArea{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden;}
+#mainArea header.topbar{flex-shrink:0;}
+#mainArea main{overflow:auto;flex:1;min-height:0;padding-bottom:10px;}
+#mainArea footer.note{flex-shrink:0;}
+
+/* ── Vista Reportes ── */
+#reportView{display:none;flex:1;flex-direction:column;min-height:0;overflow:hidden;}
+#reportView.active{display:flex;}
+
+/* ── Dashboard (página nueva) ── */
+#dashboardView{display:none;flex:1;flex-direction:column;min-height:0;overflow:hidden;}
+#dashboardView.active{display:flex;}
+.dash-toolbar{display:flex;align-items:center;gap:10px;padding:8px 14px;
+  border-bottom:1px solid var(--border);flex-shrink:0;background:var(--paper-card);}
+.dash-sub{font-size:11.5px;color:var(--ink-soft);}
+.dash-scroll{flex:1;overflow:auto;padding:14px;}
+.dash-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px;}
+.dash-kpi{background:var(--paper-card);border:1px solid var(--border);border-radius:11px;padding:12px 14px;}
+.dash-kpi .dkl{font-size:10.5px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;font-weight:700;}
+.dash-kpi .dkv{font-family:var(--mono);font-size:22px;font-weight:700;margin-top:3px;}
+.dash-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;}
+.dash-card{background:var(--paper-card);border:1px solid var(--border);border-radius:12px;padding:14px;}
+.dash-card-title{font-size:12px;font-weight:700;color:var(--navy-deep);text-transform:uppercase;
+  letter-spacing:.04em;margin-bottom:10px;}
+.dash-bar-row{display:grid;grid-template-columns:150px 1fr 34px;align-items:center;gap:8px;margin-bottom:7px;}
+.dash-bar-lbl{font-size:11.5px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.dash-bar-track{background:#EEF1F7;border-radius:6px;height:14px;overflow:hidden;}
+.dash-bar-fill{height:100%;border-radius:6px;min-width:3px;}
+.dash-bar-val{font-family:var(--mono);font-size:11.5px;font-weight:700;text-align:right;color:var(--ink-soft);}
+.dash-empty{padding:50px;text-align:center;color:var(--ink-soft);}
+
+/* ── Slicers ── */
+#rvSlicerToolbar{display:flex;align-items:center;gap:8px;padding:8px 14px;
+  border-bottom:1px solid var(--border);flex-shrink:0;background:var(--paper-card);flex-wrap:wrap;}
+.slicer-tlbl{font-size:11.5px;color:var(--ink-soft);font-weight:700;}
+.btn-cfg-s{background:var(--navy-deep);color:#fff;border:none;border-radius:7px;
+  padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;transition:.15s;white-space:nowrap;}
+.btn-cfg-s:hover{background:var(--signal-teal-dim);}
+.btn-clr-s{background:#fff;border:1px solid var(--border);color:var(--ink-soft);
+  border-radius:7px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;}
+.btn-clr-s:hover{border-color:var(--critico);color:var(--critico);}
+.btn-new-sot{background:var(--critico);border:1px solid var(--critico);color:#fff;
+  border-radius:7px;padding:6px 12px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap;
+  animation:newSotBlink 1.3s ease-in-out infinite;box-shadow:0 0 0 0 rgba(255,84,112,.55);}
+@keyframes newSotBlink{
+  0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(255,84,112,.55);}
+  50%{opacity:.72;box-shadow:0 0 0 6px rgba(255,84,112,0);}
+}
+.btn-new-sot:hover{animation-play-state:paused;filter:brightness(1.08);}
+.slicer-smry{font-size:11px;color:#1E3A78;font-weight:700;flex:1;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}
+
+#rvSlicerBar{display:flex;gap:10px;padding:12px 14px;flex-shrink:0;
+  overflow-x:auto;overflow-y:visible;border-bottom:1px solid var(--border);
+  background:#F8F9FC;align-items:flex-start;
+  /* Altura fija para los slicers — no aplasta la tabla */
+  height:258px;
+  scrollbar-width:thin;-webkit-overflow-scrolling:touch;}
+
+.slicer-box{background:#fff;border:1.5px solid #C8D4EE;border-radius:10px;
+  flex-shrink:0;display:flex;flex-direction:column;
+  user-select:none;box-shadow:0 1px 5px rgba(11,18,32,.08);
+  position:relative;width:180px;
+  /* Altura FIJA — el scroll ocurre en slicer-items, el box no crece */
+  height:240px;
+  /* Contiene el contenido dentro de la caja: evita que listas largas se
+     filtren fuera del box y terminen forzando el scroll de toda la ventana */
+  overflow:hidden;}
+.slicer-box:hover{border-color:#A8BBDD;}
+.slicer-head{background:#EEF2FA;border-bottom:1px solid #D0DAF0;
+  padding:7px 10px;display:flex;align-items:center;gap:6px;flex-shrink:0;}
+.slicer-title{font-size:11px;font-weight:700;color:var(--navy-deep);
+  text-transform:uppercase;letter-spacing:.04em;flex:1;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.slicer-cnt{font-size:10px;color:#6E88B0;white-space:nowrap;flex-shrink:0;}
+.slicer-cnt.sel{background:#1E3A78;color:#fff;border-radius:10px;padding:1px 7px;font-weight:700;}
+.slicer-clr{background:none;border:none;color:#9DACC8;font-size:13px;cursor:pointer;padding:0 0 0 4px;flex-shrink:0;}
+.slicer-clr:hover{color:var(--critico);}
+.slicer-items{
+  flex:1;
+  min-height:0;
+  overflow-y:scroll; /* scroll siempre visible para feedback visual */
+  overflow-x:hidden;
+  padding:4px 2px 4px 4px;
+  display:flex;flex-direction:column;gap:1px;
+  scrollbar-width:thin;
+  scrollbar-color:#C8D4EE #F4F6FA;
+}
+.slicer-items::-webkit-scrollbar{width:6px;}
+.slicer-items::-webkit-scrollbar-track{background:#F4F6FA;border-radius:3px;}
+.slicer-items::-webkit-scrollbar-thumb{background:#C8D4EE;border-radius:3px;}
+.slicer-items::-webkit-scrollbar-thumb:hover{background:#1E3A78;}
+.slicer-item{padding:6px 9px;border-radius:5px;font-size:13px;font-weight:500;
+  cursor:pointer;border:none;text-align:left;background:none;
+  width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#1B2333;transition:background .08s;
+  /* CRÍTICO: sin esto, flexbox encoge los items para que "quepan" todos
+     en el alto visible en vez de desbordar y disparar el scroll — eso
+     es lo que causaba el texto apachurrado/ilegible en listas largas */
+  flex-shrink:0;line-height:1.3;box-sizing:border-box;}
+.slicer-item:hover{background:#EEF2FA;}
+.slicer-item.selected{background:#1E3A78;color:#fff;font-weight:700;}
+.slicer-item.selected:hover{background:#2A4D9E;}
+.slicer-item.unavail{color:#A0ABBF;font-style:italic;}
+.slicer-item.unavail:hover{background:#F4F6FA;}
+.res-e{position:absolute;right:0;top:0;bottom:0;width:5px;cursor:ew-resize;z-index:10;}
+.res-e:hover{background:rgba(30,58,120,.12);}
+.res-s{height:7px;width:100%;cursor:ns-resize;flex-shrink:0;
+  background:#EEF2FA;border-top:1px solid #D0DAF0;
+  display:flex;align-items:center;justify-content:center;}
+.res-s::after{content:"";width:28px;height:2px;background:#B0BACC;border-radius:2px;}
+.res-s:hover{background:#DDE4F4;}
+.res-s:hover::after{background:#1E3A78;}
+
+/* ── Toolbar tabla ── */
+.rv-footbar{display:flex;align-items:center;
+  padding:8px 14px;gap:10px;flex-wrap:wrap;flex-shrink:0;border-top:1px solid var(--border);background:var(--paper-card);}
+.rv-footbar-spacer{flex:1;}
+.rv-ind{font-size:12px;color:var(--ink-soft);}
+.rv-ind .rpill{background:var(--navy-deep);color:#fff;border-radius:10px;
+  padding:2px 8px;font-size:11px;font-weight:700;font-family:var(--mono);}
+#rvSelInfo{font-size:11px;color:var(--ink-soft);font-family:var(--mono);}
+#rvSelInfo b{color:var(--navy-deep);}
+.btn-copy{background:#fff;border:1px solid var(--border);color:var(--ink);
+  border-radius:6px;padding:5px 10px;font-size:11.5px;font-weight:600;cursor:pointer;white-space:nowrap;}
+.btn-copy:hover{border-color:var(--signal-teal);color:var(--signal-teal-dim);}
+.btn-copy.copied{border-color:var(--ok);color:var(--ok);}
+.btn-exp-rv{background:#fff;border:1px solid var(--border);color:var(--ink);
+  border-radius:7px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;}
+.btn-exp-rv:hover{border-color:var(--navy-deep);}
+
+/* ── Tabla reportes ── */
+.rv-twrap{flex:1;min-height:0;overflow:hidden;margin:10px 14px 14px;
+  background:#fff;border:1px solid var(--border);border-radius:12px;
+  /* min-height explícito para que siempre haya espacio de tabla visible */
+  min-height:200px;}
+.rv-scroll{overflow:auto;height:100%;width:100%;-webkit-overflow-scrolling:touch;
+  /* scroll suave en móvil */
+  scroll-behavior:smooth;}
+.rv-tbl{border-collapse:collapse;width:100%;font-size:11.8px;font-family:var(--mono);min-width:900px;
+  table-layout:fixed;
+  /* Evita que el drag de selección de rango dispare también la selección
+     nativa del navegador (que sí puede llegar a incluir el <th>) */
+  user-select:none;-webkit-user-select:none;}
+.rv-tbl thead th{position:sticky;top:0;background:#15203A;color:#C8D4EE;
+  font-size:10px;letter-spacing:.03em;text-align:left;padding:9px 10px;
+  border-bottom:1px solid var(--navy-line);border-right:1px solid #22324f;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  font-family:var(--sans);font-weight:700;z-index:4;cursor:pointer;user-select:none;position:relative;}
+/* Handle de redimensión de columna, estilo Excel: arrastrar el borde derecho del encabezado */
+.col-resize-handle{position:absolute;top:0;right:0;width:8px;height:100%;
+  cursor:col-resize;z-index:6;user-select:none;touch-action:none;}
+.col-resize-handle:hover,.col-resize-handle.resizing{background:rgba(0,217,192,.45);}
+.rv-tbl thead th:hover{background:#1E2E4A;}
+.rv-tbl thead th.thn{position:sticky;left:0;top:0;z-index:5;background:#0B1220;min-width:32px;text-align:center;cursor:default;}
+.rv-tbl thead th.thn:hover{background:#0B1220;}
+.rv-tbl thead th.thp{background:#2A2050;color:#E2D6FF;min-width:32px;}
+.rv-tbl td.tdp{background:#FBF9FF;border-right:1px dashed #D8CCF0;color:var(--ink);
+  min-width:32px;cursor:text;
+  user-select:text;-webkit-user-select:text;} /* permite edición/selección normal en estas celdas */
+.rv-tbl td.tdp:focus{outline:2px solid #8B6FE0;outline-offset:-2px;background:#fff;}
+.rv-tbl thead th.sa::after{content:" ↑";color:var(--signal-teal);}
+.rv-tbl thead th.sd::after{content:" ↓";color:var(--signal-teal);}
+.rv-tbl tbody td{padding:6px 10px;border-bottom:1px solid #EEF0F5;
+  border-right:1px solid #F0F2F7;white-space:nowrap;max-width:200px;
+  overflow:hidden;text-overflow:ellipsis;cursor:cell;}
+.rv-tbl tbody td.tdn{position:sticky;left:0;background:#F4F6FA;color:var(--ink-soft);
+  text-align:center;font-weight:700;border-right:1px solid var(--border);
+  min-width:32px;z-index:1;cursor:default;}
+.rv-tbl tbody tr:hover td{background:#F5F7FC;}
+.rv-tbl tbody tr:hover td.tdn{background:#EAF0FC;}
+.rvneg{color:#FF5470;font-weight:700;}.rvpos{color:#2BBE83;}
+.rv-tbl tbody td.csel{background:#C7D9FF!important;}
+.rv-tbl tbody td.canc{background:#A8C4FF!important;outline:2px solid #1E3A78;outline-offset:-2px;}
+.rv-empty{padding:50px;text-align:center;color:var(--ink-soft);}
+/* ── Tooltip celda completa ── */
+#cellFullTooltip{
+  display:none;position:fixed;z-index:9999;
+  background:#1B2333;color:#F4F6FA;border:1px solid #33415F;
+  border-radius:10px;padding:10px 12px;max-width:420px;min-width:160px;
+  box-shadow:0 8px 28px rgba(11,18,32,.45);
+  animation:tooltipIn .12s ease;
+}
+#cellFullTooltip.interactive{pointer-events:auto;}
+@keyframes tooltipIn{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
+
+/* ── Notificaciones tipo toast (reemplazan al alert() nativo) ── */
+#toastContainer{position:fixed;top:20px;right:20px;z-index:9999;
+  display:flex;flex-direction:column;gap:10px;pointer-events:none;
+  max-width:400px;}
+.toast{pointer-events:auto;background:var(--navy-panel);color:#F4F6FA;
+  border-radius:12px;padding:14px 16px;box-shadow:0 10px 32px rgba(11,18,32,.45);
+  border:1px solid var(--navy-line);display:flex;align-items:flex-start;gap:12px;
+  animation:toastIn .28s cubic-bezier(.2,.8,.2,1);position:relative;overflow:hidden;}
+.toast::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;}
+.toast.toast-success::before{background:var(--ok);}
+.toast.toast-info::before{background:var(--signal-teal);}
+.toast-icon{font-size:20px;line-height:1;flex-shrink:0;margin-top:1px;}
+.toast-body{flex:1;min-width:0;}
+.toast-title{font-size:13px;font-weight:800;letter-spacing:.01em;margin-bottom:2px;}
+.toast.toast-success .toast-title{color:#7BE3B4;}
+.toast.toast-info .toast-title{color:var(--signal-teal);}
+.toast-msg{font-size:12.5px;color:#C8D4EE;line-height:1.4;}
+.toast-close{background:none;border:none;color:#7A8AAE;font-size:16px;cursor:pointer;
+  line-height:1;padding:0;flex-shrink:0;}
+.toast-close:hover{color:#fff;}
+.toast.toast-leave{animation:toastOut .22s ease forwards;}
+@keyframes toastIn{from{opacity:0;transform:translateX(24px);}to{opacity:1;transform:translateX(0);}}
+@keyframes toastOut{from{opacity:1;transform:translateX(0);}to{opacity:0;transform:translateX(24px);}}
+@media (max-width:640px){#toastContainer{left:12px;right:12px;top:12px;max-width:none;}}
+.tt-text{font-family:var(--mono);font-size:12px;line-height:1.6;
+  word-break:break-word;white-space:pre-wrap;
+  max-height:200px;overflow-y:auto;scrollbar-width:thin;}
+.tt-footer{display:flex;justify-content:space-between;align-items:center;
+  margin-top:8px;padding-top:8px;border-top:1px solid #33415F;}
+.tt-label{font-size:10px;color:#9DACC8;font-family:var(--sans);}
+.tt-copy{background:var(--signal-teal);color:var(--navy-deep);border:none;
+  border-radius:6px;padding:4px 11px;font-size:11.5px;font-weight:700;
+  cursor:pointer;font-family:var(--sans);transition:.12s;}
+.tt-copy:hover{background:#00F0D5;}
+.tt-copy.copied{background:#2BBE83;color:#fff;}
+
+
+/* Modal config slicers */
+#scModal{position:fixed;inset:0;background:rgba(11,18,32,.5);z-index:300;
+  display:none;align-items:center;justify-content:center;padding:16px;}
+#scModal.open{display:flex;}
+.sccard{background:#fff;border-radius:14px;width:500px;max-width:100%;max-height:85vh;
+  display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(11,18,32,.3);animation:slideUp .18s ease;}
+/* Configurar Slicers necesita mostrar todo el listado sin scroll interno */
+#scModal .sccard{width:min(1100px,96vw);max-height:94vh;}
+#scModal .scbody{overflow:visible;}
+#scModal .sccols{grid-template-columns:repeat(auto-fill,minmax(230px,1fr));}
+.schead{padding:16px 18px 0;display:flex;align-items:center;justify-content:space-between;}
+.schead h3{font-size:15px;margin:0;}
+.scclose{background:none;border:none;font-size:20px;color:#9DACC8;cursor:pointer;}
+.scbody{padding:14px 18px;overflow:auto;flex:1;}
+.schint{font-size:12px;color:var(--ink-soft);margin-bottom:12px;line-height:1.5;}
+.sccols{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;}
+.scitem{display:flex;align-items:center;gap:8px;padding:8px 10px;
+  border:1px solid var(--border);border-radius:8px;cursor:pointer;transition:.12s;}
+.scitem:hover{border-color:#B0BACC;background:#FAFBFD;}
+.scitem.sel{border-color:#1E3A78;background:#EEF4FF;}
+.scitem input[type=checkbox]{accent-color:#1E3A78;width:15px;height:15px;flex-shrink:0;}
+.scitem label{font-size:12px;font-weight:600;cursor:pointer;flex:1;}
+.sc-name-edit{display:inline-block;cursor:text;border-radius:4px;padding:1px 3px;margin:-1px -3px;outline:none;}
+.sc-name-edit:hover{background:#EEF2FA;}
+.sc-name-edit:focus{background:#fff;box-shadow:0 0 0 2px var(--signal-teal-dim);cursor:text;}
+.scitem-personal{}
+.sc-personal-ico{font-size:14px;flex-shrink:0;}
+.sc-order-wrap{flex-shrink:0;margin-left:auto;padding-left:6px;display:flex;align-items:center;gap:5px;}
+.sc-order{width:44px;padding:4px 5px;border:1.5px solid var(--border);border-radius:6px;
+  font-size:12px;font-family:var(--mono);text-align:center;font-weight:700;color:var(--navy-deep);}
+.sc-order:focus{outline:none;border-color:var(--signal-teal-dim);}
+.sc-order-none{font-size:11px;color:#C3CADB;}
+.sc-del-btn{flex-shrink:0;background:none;border:none;color:#D6DCE8;cursor:pointer;
+  font-size:13px;padding:3px;border-radius:5px;line-height:1;transition:.12s;}
+.sc-del-btn:hover{color:var(--critico);background:#FFE9EC;}
+.sc-section-title{font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;
+  color:var(--navy-deep);margin:16px 0 8px;padding-bottom:6px;border-bottom:2px solid var(--border);}
+.sc-section-title:first-of-type{margin-top:0;}
+.sc-empty-hint{font-size:12px;color:var(--ink-soft);padding:10px 2px;grid-column:1/-1;}
+.scfoot{padding:12px 18px 16px;display:flex;justify-content:flex-end;gap:10px;}
+.scnew-btn-row .scnew-btn.scnew-btn-relate{background:#EAFBF6;border-color:#8FDFC9;color:#0B7A54;}
+.scnew-btn-row .scnew-btn.scnew-btn-relate:hover{background:#D8F5EA;border-color:#0B7A54;}
+.scok{background:var(--navy-deep);color:#fff;border:none;border-radius:7px;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;}
+.scok:hover{background:var(--signal-teal-dim);}
+.sccancel{background:#fff;border:1px solid var(--border);color:var(--ink-soft);border-radius:7px;padding:9px 14px;font-size:13px;font-weight:600;cursor:pointer;}
+
+/* ── Modal: Registro de Backlog ── */
+#backlogModal{position:fixed;inset:0;background:rgba(11,18,32,.6);z-index:250;
+  display:none;align-items:center;justify-content:center;padding:20px;}
+#backlogModal.open{display:flex;}
+.bl-card{background:#fff;border-radius:14px;width:100%;max-width:1400px;height:90vh;
+  display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.4);}
+.bl-head{background:linear-gradient(135deg,var(--navy-deep),var(--navy-panel));
+  color:#fff;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.bl-head h3{margin:0;font-size:15px;letter-spacing:.02em;}
+.bl-head .scclose{background:none;border:none;color:#AFC0DE;font-size:20px;cursor:pointer;line-height:1;}
+.bl-head .scclose:hover{color:#fff;}
+.bl-scroll{flex:1;overflow-y:auto;min-height:0;display:flex;flex-direction:column;}
+.bl-scroll main{max-width:none;padding:16px 20px 0;}
+.bl-scroll footer.note{display:none !important;max-width:none;padding:8px 20px 14px;}
+.bl-validated-info{margin:0 20px 4px;padding:9px 14px;background:var(--ok-bg);color:#176B45;
+  border-radius:9px;font-size:12.5px;font-weight:700;}
+.bl-history{margin:0 20px 10px;}
+.bl-history summary{cursor:pointer;font-size:12px;font-weight:700;color:var(--ink-soft);padding:6px 2px;}
+.bl-hist-list{display:flex;flex-direction:column;gap:6px;margin-top:8px;max-height:220px;overflow-y:auto;}
+.bl-hist-item{display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid var(--border);
+  border-radius:8px;font-size:11.5px;background:var(--paper);flex-wrap:wrap;}
+.bl-hist-item .bhref{background:var(--ok-bg);color:#176B45;padding:2px 8px;border-radius:12px;font-weight:700;font-size:10.5px;}
+.bl-hist-item .bhcopy{margin-left:auto;background:#fff;border:1px solid var(--border);border-radius:6px;
+  padding:5px 10px;font-size:11px;font-weight:600;cursor:pointer;}
+.bl-hist-item .bhcopy:hover{border-color:var(--navy-deep);}
+.bl-foot{flex-shrink:0;border-top:1px solid var(--border);padding:12px 20px;
+  display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap;background:var(--paper-card);}
+.bl-foot-spacer{flex:1;}
+.bl-save-btn{background:var(--ok);}
+.bl-save-btn:hover{background:#2BBE83;}
+.bl-ref-chk{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--ink);cursor:pointer;}
+.bl-ref-chk input{accent-color:var(--navy-deep);width:15px;height:15px;}
+.bl-user-row{display:none !important;align-items:center;gap:8px;margin:0 20px 10px;font-size:12px;}
+.bl-user-row input{padding:7px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12.5px;width:180px;}
+
+/* ── Nueva Slicer (sub-modal) ── */
+.scnew-btn-row{display:flex;gap:10px;margin-bottom:12px;}
+.scnew-btn{background:#EEF4FF;border:1.5px dashed #A8BEEA;color:#1E3A78;border-radius:8px;
+  padding:9px 14px;font-size:12.5px;font-weight:700;cursor:pointer;flex:1;transition:.15s;}
+.scnew-btn:hover{background:#E0EAFF;border-color:#1E3A78;}
+#scNewModal,#scPersonalModal,#taskModal,#relateModal{position:fixed;inset:0;background:rgba(11,18,32,.55);z-index:320;
+  display:none;align-items:center;justify-content:center;}
+#scNewModal.open,#scPersonalModal.open,#taskModal.open,#relateModal.open{display:flex;}
+.scnew-card{width:420px;}
+.scnew-lbl{display:block;font-size:11px;font-weight:700;color:var(--ink-soft);
+  text-transform:uppercase;letter-spacing:.04em;margin:12px 0 5px;}
+.scnew-select,.scnew-input{width:100%;padding:9px 11px;border:1.5px solid var(--border);
+  border-radius:8px;font-size:13px;font-family:var(--sans);color:var(--ink);background:#fff;}
+.scnew-select:focus,.scnew-input:focus{outline:none;border-color:var(--signal-teal-dim);}
+.scnew-err{color:var(--critico);font-size:12px;margin-top:10px;font-weight:600;}
+.scnew-hint-sm{font-size:11px;color:var(--ink-soft);margin:5px 0 0;line-height:1.4;}
+
+/* ── Página: Registro de Backlogs (histórico, ya no es ventana flotante) ── */
+#registroView{display:none;flex:1;flex-direction:column;min-height:0;overflow:hidden;}
+#registroView.active{display:flex;}
+.reg-empty{padding:50px;text-align:center;color:var(--ink-soft);}
+.reg-twrap{flex-shrink:0;border:1px solid var(--border);border-radius:12px;overflow:hidden;background:#fff;
+  max-height:420px;overflow-y:auto;overflow-x:auto;}
+.reg-twrap thead th{position:sticky;top:0;z-index:2;}
+.reg-tbl{width:100%;border-collapse:collapse;font-size:12px;}
+.reg-tbl thead th{background:var(--paper);color:var(--ink-soft);text-align:left;font-size:10.5px;
+  text-transform:uppercase;letter-spacing:.03em;font-weight:700;padding:9px 12px;border-bottom:1px solid var(--border);}
+.reg-tbl td{padding:9px 12px;border-bottom:1px solid var(--border);font-family:var(--mono);white-space:nowrap;}
+.reg-tbl tbody tr:last-child td{border-bottom:none;}
+.reg-tbl tbody tr:hover{background:var(--paper);}
+.reg-ref-badge{background:var(--ok-bg);color:#176B45;padding:2px 9px;border-radius:12px;font-weight:700;font-size:10.5px;font-family:var(--sans);}
+.reg-copy-btn{background:#fff;border:1px solid var(--border);border-radius:6px;padding:5px 10px;
+  font-size:11px;font-weight:600;cursor:pointer;font-family:var(--sans);}
+.reg-copy-btn:hover{border-color:var(--navy-deep);}
+.reg-cmp{margin-top:16px;background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px;}
+.reg-th-chk{width:36px;text-align:center !important;}
+.reg-tbl td.reg-td-chk{width:36px;text-align:center;}
+.reg-tbl input[type=checkbox]{accent-color:#1E3A78;width:15px;height:15px;cursor:pointer;}
+.reg-tbl tbody tr.reg-row-sel{background:#EEF4FF;}
+.reg-tbl tbody tr.reg-row-sel:hover{background:#E4EDFF;}
+.reg-sel-count{font-size:12px;color:var(--ink-soft);font-weight:600;}
+.reg-foot{flex-shrink:0;border-top:1px solid var(--border);padding:12px 14px;
+  display:flex;align-items:center;justify-content:flex-end;gap:10px;background:var(--paper-card);}
+.reg-foot-spacer{flex:1;}
+.btn-danger{background:var(--critico);border:1px solid var(--critico);color:#fff;border-radius:7px;
+  padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;}
+.btn-danger:hover{background:#E8465F;}
+.btn-danger:disabled{background:#F0C9CF;border-color:#F0C9CF;color:#fff;cursor:not-allowed;}
+
+/* ── Resultado de comparación (inline, ya no flotante) ── */
+.cmp-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px;}
+.cmp-kpi{border:1px solid var(--border);border-radius:10px;padding:10px 12px;text-align:center;}
+.cmp-kpi .cmpl{font-size:10px;color:var(--ink-soft);text-transform:uppercase;font-weight:700;letter-spacing:.04em;}
+.cmp-kpi .cmpv{font-family:var(--mono);font-size:22px;font-weight:800;margin-top:3px;}
+.cmp-sect h4{font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);margin:14px 0 6px;}
+.cmp-list{max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;}
+.cmp-row{display:flex;gap:10px;padding:6px 10px;font-size:12px;font-family:var(--mono);border-bottom:1px solid var(--border);}
+.cmp-upd-list{max-height:280px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;}
+.cmp-upd-item{padding:8px 10px;border-bottom:1px solid var(--border);}
+.cmp-upd-item:last-child{border-bottom:none;}
+.cmp-upd-sot{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--ink);margin-bottom:4px;}
+.cmp-upd-count{font-family:var(--sans);font-weight:600;font-size:10.5px;color:#B8860B;background:#FFF6DE;padding:1px 7px;border-radius:10px;margin-left:6px;}
+.cmp-upd-fields{display:flex;flex-wrap:wrap;gap:5px;}
+.cmp-upd-field{font-family:var(--mono);font-size:11px;background:var(--paper);border:1px solid var(--border);border-radius:5px;padding:2px 7px;color:var(--ink-soft);}
+.cmp-upd-field b{color:var(--ink);}
+.cmp-row:last-child{border-bottom:none;}
+.cmp-row span{color:var(--ink-soft);}
+.cmp-empty{padding:10px;color:var(--ink-soft);font-size:12px;text-align:center;}
+
+/* ── Resaltado de filas "SOT Nuevas" seleccionadas directamente en la tabla ── */
+.rv-tbl tbody tr.row-newsot td{background:#FFE3E9 !important;}
+.rv-tbl tbody tr.row-newsot td.tdn{background:#FFC9D4 !important;color:var(--critico);}
+.rv-tbl tbody tr.row-newsot:hover td{background:#FFD5DE !important;}
+
+/* ================================================================
+   RESPONSIVO — MOBILE FIRST
+   ================================================================ */
+@media (max-width: 768px) {
+
+  /* En móvil el strip va ABAJO como barra de navegación */
+  #appWrapper{flex-direction:column;}
+
+  #sideStrip{
+    width:100%;height:54px;flex-direction:row;justify-content:space-around;
+    padding:0;border-right:none;border-top:1px solid var(--navy-line);
+    order:3;flex-shrink:0;
+  }
+  .strip-btn{width:auto;flex:1;height:100%;border-radius:0;flex-direction:row;gap:6px;}
+  .strip-btn .slbl{font-size:11px;letter-spacing:0;}
+
+  /* mainArea arriba */
+  #mainArea{order:1;flex:1;min-height:0;}
+
+  /* Cards en 2 columnas */
+  .rpt-cards{display:grid;grid-template-columns:1fr 1fr;}
+  .rpt-card{min-width:unset;}
+
+  /* Slicers en móvil: scroll horizontal, cajas más pequeñas */
+  #rvSlicerBar{padding:8px;height:200px;}
+  .slicer-box{width:150px;height:190px;}
+  .res-e,.res-s{display:none;} /* sin resize en móvil, no hay mouse */
+
+  /* Toolbar de reportes en móvil */
+  .rv-footbar{padding:6px 8px;gap:6px;}
+  .rv-twrap{margin:6px 8px 8px;}
+
+  /* Topbar original */
+  header.topbar{padding:10px 12px;flex-wrap:wrap;gap:8px;}
+  header.topbar h1{font-size:12px;}
+  header.topbar .sub{font-size:9.5px;}
+
+  /* Main original en móvil */
+  #mainArea main{padding:10px 8px 0;}
+
+  /* Tabla principal original — scroll horizontal */
+  .table-wrap{margin:0 0 8px;}
+  .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  table{min-width:900px;}
+
+  /* Cards resumen originales */
+  .cards{grid-template-columns:repeat(2,1fr) !important;}
+
+  /* Filtros originales en móvil */
+  .filters{padding:10px 10px;}
+  .filters-row{gap:6px;}
+  .filters input[type=text]#searchGlobal{min-width:0;flex:1;}
+
+  /* Modal */
+  .sccard{border-radius:10px 10px 0 0;max-height:90vh;width:100%;position:fixed;bottom:0;left:0;}
+  #scModal{align-items:flex-end;padding:0;}
+  .sccols{grid-template-columns:1fr 1fr;}
+  #scModal .sccard{width:100%;max-height:92vh;border-radius:14px 14px 0 0;}
+  #scModal .sccols{grid-template-columns:1fr;}
+  .scnew-btn-row{flex-wrap:wrap;}
+  .scnew-btn-row .scnew-btn{min-width:120px;}
+
+  /* Botones compactos */
+  .btn-exp-rv,.btn-copy{font-size:11px;padding:5px 8px;}
+  #rvSelInfo{display:none;}
+}
+
+@media (max-width: 480px) {
+  .slicer-box{width:130px;}
+  .cards{grid-template-columns:repeat(2,1fr) !important;}
+  .rpt-cards{grid-template-columns:1fr 1fr;}
+  header.topbar{padding:8px 10px;}
+  header.topbar h1{font-size:11px;}
+  .topbar .meta{display:none;}
+  .topbar .actions{gap:4px;}
+  .btn-ghost{padding:5px 8px;font-size:11px;}
+}
+
+/* ── Control de Pendientes (Kanban) ── */
+#pendientesView{display:none;flex:1;flex-direction:column;min-height:0;overflow:hidden;}
+#pendientesView.active{display:flex;}
+.kanban-scroll{flex:1;overflow-x:auto;overflow-y:hidden;display:flex;gap:14px;padding:16px;align-items:flex-start;}
+.kanban-col{background:var(--paper-card);border:1px solid var(--border);border-radius:12px;
+  width:280px;min-width:220px;max-width:900px;display:flex;flex-direction:column;max-height:100%;flex-shrink:0;}
+.kanban-col-head{display:flex;align-items:center;gap:6px;padding:10px 12px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.kanban-col-title{flex:1;font-size:12.5px;font-weight:800;color:var(--navy-deep);
+  text-transform:uppercase;letter-spacing:.03em;outline:none;border-radius:5px;padding:2px 4px;cursor:text;
+  min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.kanban-col-title:focus{background:#fff;box-shadow:0 0 0 2px var(--signal-teal-dim);white-space:normal;}
+.kanban-col-count{background:var(--paper);color:var(--ink-soft);border-radius:10px;
+  font-size:10.5px;font-weight:700;padding:1px 7px;font-family:var(--mono);flex-shrink:0;}
+.kanban-col-del{background:none;border:none;color:#C3CADB;cursor:pointer;font-size:14px;padding:2px;flex-shrink:0;}
+.kanban-col-del:hover{color:var(--critico);}
+.kanban-col-body{flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:8px;min-height:80px;transition:background .12s;}
+.kanban-col-body.drag-over{background:#EEF4FF;}
+.kanban-card{background:#fff;border:1px solid var(--border);border-radius:9px;padding:9px 10px;
+  cursor:grab;box-shadow:0 1px 3px rgba(11,18,32,.06);transition:.12s;}
+.kanban-card:active{cursor:grabbing;}
+.kanban-card:hover{border-color:#B0BACC;box-shadow:0 3px 10px rgba(11,18,32,.1);}
+.kanban-card.dragging{opacity:.35;}
+.kanban-card-badge{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:800;
+  padding:2px 7px;border-radius:9px;margin-bottom:5px;font-family:var(--mono);}
+.kanban-card-badge.sot{background:#E4EDFF;color:#1E3A78;}
+.kanban-card-badge.cliente{background:#FFF0DE;color:#9A5B00;}
+.kanban-card-title{font-size:12.5px;font-weight:600;color:var(--ink);line-height:1.35;margin-bottom:6px;word-break:break-word;}
+.kanban-card-foot{display:flex;align-items:center;gap:6px;}
+.kanban-card-alert{font-size:10px;color:var(--critico);font-weight:700;display:flex;align-items:center;gap:3px;font-family:var(--mono);}
+.kanban-card-alert.fired{color:var(--ink-soft);text-decoration:line-through;}
+.kanban-card-del{margin-left:auto;background:none;border:none;color:#C3CADB;cursor:pointer;font-size:12px;padding:0;}
+.kanban-card-del:hover{color:var(--critico);}
+.kanban-addcol{min-width:220px;max-width:220px;flex-shrink:0;border:1.5px dashed #C8D4EE;border-radius:12px;
+  display:flex;align-items:center;justify-content:center;color:#1E3A78;font-weight:700;font-size:12.5px;
+  cursor:pointer;background:#F7F9FE;padding:20px;align-self:flex-start;transition:.12s;}
+.kanban-addcol:hover{background:#EEF4FF;border-color:#1E3A78;}
+.kanban-empty{margin:auto;color:var(--ink-soft);font-size:13px;text-align:center;padding:40px;}
+.task-type-toggle{display:flex;gap:8px;margin-bottom:2px;}
+.task-type-btn{flex:1;background:#fff;border:1.5px solid var(--border);border-radius:8px;padding:8px;
+  font-size:12px;font-weight:700;cursor:pointer;color:var(--ink-soft);}
+.task-type-btn.active{border-color:#1E3A78;background:#EEF4FF;color:#1E3A78;}
+.scnew-chk-lbl{display:flex;align-items:center;gap:7px;cursor:pointer;}
+.scnew-chk-lbl input{width:15px;height:15px;accent-color:#1E3A78;}
+.task-comment-area{resize:vertical;font-family:var(--sans);line-height:1.4;min-height:44px;}
+.task-sot-checklist{max-height:160px;overflow-y:auto;border:1.5px solid var(--border);border-radius:8px;padding:6px;margin-bottom:2px;}
+.task-sot-item{display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:6px;cursor:pointer;font-size:12px;}
+.task-sot-item:hover{background:var(--paper);}
+.task-sot-item input{width:14px;height:14px;accent-color:#1E3A78;flex-shrink:0;}
+.task-sot-item b{font-family:var(--mono);color:var(--navy-deep);}
+.task-sot-item span{color:var(--ink-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.kanban-card-comment{font-size:11px;color:var(--ink-soft);background:var(--paper);border-radius:6px;
+  padding:4px 6px;margin-bottom:6px;line-height:1.35;word-break:break-word;}
+.kanban-card-comment::before{content:"💬 ";}
+.kanban-card-sots{font-size:10px;color:var(--ink-soft);font-family:var(--mono);margin-bottom:5px;}
+.kanban-col{position:relative;}
+.kanban-col-resize{position:absolute;top:0;right:-3px;width:7px;height:100%;cursor:col-resize;z-index:6;}
+.kanban-col-resize:hover,.kanban-col-resize.resizing{background:rgba(0,217,192,.35);}
+</style>
+</head>
+<body>
+<!-- ===== SIDEBAR DESLIZABLE ===== -->
+<div id="cellFullTooltip"></div>
+<div id="toastContainer"></div>
+<div id="scModal">
+  <div class="sccard">
+    <div class="schead"><h3>⚙️ Configurar Slicers</h3><button class="scclose" id="scClose">✕</button></div>
+    <div class="scbody">
+      <p class="schint">Selecciona las columnas que deseas usar como slicers (máx. 8). Al elegir un valor filtra los demás en cascada — igual que en Excel.</p>
+      <div class="scnew-btn-row">
+        <button class="scnew-btn" id="btnNewPersonal">➕ Personal</button>
+        <button class="scnew-btn" id="btnNewSlicer">➕ Master</button>
+        <button class="scnew-btn scnew-btn-relate" id="btnRelateSlicers">🔗 Relacionar</button>
+      </div>
+      <div id="scColList"></div>
+    </div>
+    <div class="scfoot">
+      <button class="sccancel" id="scCancel">Cancelar</button>
+      <button class="scok" id="scApply">Aplicar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SUB-MODAL: Nueva Slicer ===== -->
+<div id="scNewModal">
+  <div class="sccard scnew-card">
+    <div class="schead"><h3>➕ Nueva Columna Master</h3><button class="scclose" id="scNewClose">✕</button></div>
+    <div class="scbody">
+      <p class="schint">Elige una columna de la tabla de <b>Carga &amp; Validación de Data Maestra</b> y define el nombre que aparecerá en <b>Control de Backlog</b>. Se agregará como slicer disponible y como columna nueva en la tabla.</p>
+      <label class="scnew-lbl">Columna de origen</label>
+      <select class="scnew-select" id="scNewCol"></select>
+      <label class="scnew-lbl">Nombre a mostrar</label>
+      <input type="text" class="scnew-input" id="scNewLabel" placeholder="Ej: Fecha de generación" maxlength="40">
+      <label class="scnew-lbl">Posición en la tabla (Nº de columna)</label>
+      <input type="number" class="scnew-input" id="scNewOrder" min="1" placeholder="Ej: 1 = primera columna">
+      <p class="scnew-hint-sm">Define en qué lugar de la tabla de Control de Backlog aparecerá esta columna. Si se deja vacío, se agrega al final.</p>
+      <div class="scnew-err" id="scNewErr" style="display:none;"></div>
+    </div>
+    <div class="scfoot">
+      <button class="sccancel" id="scNewCancel">Cancelar</button>
+      <button class="scok" id="scNewAdd">Agregar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SUB-MODAL: Nueva Columna Personal ===== -->
+<div id="scPersonalModal">
+  <div class="sccard scnew-card">
+    <div class="schead"><h3>➕ Nueva Columna Personal</h3><button class="scclose" id="scPersonalClose">✕</button></div>
+    <div class="scbody">
+      <p class="schint">Las columnas <b>Personal</b> no vienen de la Data Maestra — son de edición manual, libre para anotar lo que necesites por proyecto. Se ubican al lado izquierdo de la columna <b>SOT</b> y aparecen al hacer <b>doble clic</b> en el encabezado <b>#</b> de la tabla.</p>
+      <label class="scnew-lbl">Nombre de la columna</label>
+      <input type="text" class="scnew-input" id="scPersonalLabel" placeholder="Ej: Comentario interno" maxlength="40">
+      <label class="scnew-lbl">Posición entre las columnas Personal (Nº de columna)</label>
+      <input type="number" class="scnew-input" id="scPersonalOrder" min="1" placeholder="Ej: 1 = primera columna Personal">
+      <p class="scnew-hint-sm">Las columnas Personal siempre van a la izquierda de SOT; este número solo define el orden entre ellas. Si se deja vacío, se agrega al final.</p>
+      <div class="scnew-err" id="scPersonalErr" style="display:none;"></div>
+    </div>
+    <div class="scfoot">
+      <button class="sccancel" id="scPersonalCancel">Cancelar</button>
+      <button class="scok" id="scPersonalAdd">Agregar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL: Relacionar Slicer Master → Personal ===== -->
+<div id="relateModal">
+  <div class="sccard scnew-card">
+    <div class="schead"><h3>🔗 Relacionar Slicers</h3><button class="scclose" id="relateClose">✕</button></div>
+    <div class="scbody">
+      <p class="schint">Copia el valor de una columna <b>Master</b> hacia una columna <b>Personal</b>, fila por fila, para todas las SOT del backlog actual. Después podrás editar el valor de la columna Personal libremente, sin que se pierda la relación de las demás filas.</p>
+      <label class="scnew-lbl">Columna Master (origen)</label>
+      <select id="relateMasterSel" class="scnew-select"></select>
+      <label class="scnew-lbl">Columna Personal (destino)</label>
+      <select id="relatePersonalSel" class="scnew-select"></select>
+      <div class="scnew-err" id="relateErr" style="display:none;"></div>
+    </div>
+    <div class="scfoot">
+      <button class="sccancel" id="relateCancel">Cancelar</button>
+      <button class="scok" id="relateApply">Relacionar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL: Nueva Tarea (Control de Pendientes / Kanban) ===== -->
+<div id="taskModal">
+  <div class="sccard scnew-card">
+    <div class="schead"><h3 id="taskModalTitle">➕ Nueva Tarea</h3><button class="scclose" id="taskClose">✕</button></div>
+    <div class="scbody">
+      <label class="scnew-lbl">Asociar a</label>
+      <div class="task-type-toggle">
+        <button type="button" class="task-type-btn active" id="taskTypeSotBtn" data-type="sot">🎫 Una SOT</button>
+        <button type="button" class="task-type-btn" id="taskTypeClienteBtn" data-type="cliente">🏢 Un Cliente (varias SOT)</button>
+      </div>
+      <div id="taskSotField">
+        <label class="scnew-lbl">SOT</label>
+        <input list="taskSotList" id="taskSotInput" class="scnew-input" placeholder="Buscar por número de SOT o proyecto…">
+        <datalist id="taskSotList"></datalist>
+      </div>
+      <div id="taskClienteField" style="display:none;">
+        <label class="scnew-lbl">Cliente</label>
+        <input list="taskClienteList" id="taskClienteInput" class="scnew-input" placeholder="Buscar cliente…">
+        <datalist id="taskClienteList"></datalist>
+        <label class="scnew-lbl">Selecciona las SOT de este cliente para la tarea</label>
+        <div class="task-sot-checklist" id="taskClienteSotList"><span class="sc-empty-hint">Busca un cliente para ver sus SOT.</span></div>
+      </div>
+      <label class="scnew-lbl">Título de la tarea</label>
+      <input type="text" id="taskTitleInput" class="scnew-input" placeholder="Ej: Validar documentación con cliente" maxlength="120">
+      <label class="scnew-lbl">Comentario</label>
+      <textarea id="taskCommentInput" class="scnew-input task-comment-area" rows="2" placeholder="Ej: cliente pidió esperar hasta el viernes" maxlength="300"></textarea>
+      <label class="scnew-lbl">Estado de trabajo (columna)</label>
+      <select id="taskColSelect" class="scnew-select"></select>
+      <label class="scnew-lbl scnew-chk-lbl"><input type="checkbox" id="taskAlertEnabled"> 🔔 Configurar alerta (visual o sonido)</label>
+      <div id="taskAlertFields" style="display:none;">
+        <label class="scnew-lbl">Tipo de alerta</label>
+        <select id="taskAlertType" class="scnew-select">
+          <option value="visual">Visual (notificación en pantalla)</option>
+          <option value="sonido">Sonido</option>
+          <option value="ambos">Visual + Sonido</option>
+        </select>
+        <label class="scnew-lbl">Fecha y hora</label>
+        <input type="datetime-local" id="taskAlertDate" class="scnew-input">
+      </div>
+      <div class="scnew-err" id="taskErr" style="display:none;"></div>
+    </div>
+    <div class="scfoot">
+      <button class="sccancel" id="taskCancel">Cancelar</button>
+      <button class="scok" id="taskSave">Guardar tarea</button>
+    </div>
+  </div>
+</div>
+
+
+<div id="appWrapper">
+  <div id="sideStrip">
+    <button class="strip-btn" id="btnStripTabla" title="Registro de Backlogs">
+      <span class="sico">📜</span><span class="slbl">Registro</span>
+    </button>
+    <button class="strip-btn" id="btnStripReporte" title="Control de Backlog">
+      <span class="sico">🗂️</span><span class="slbl">Backlog</span>
+    </button>
+    <button class="strip-btn" id="btnStripDashboard" title="Dashboard">
+      <span class="sico">📈</span><span class="slbl">Dashboard</span>
+    </button>
+    <button class="strip-btn" id="btnStripPendientes" title="Control de Pendientes">
+      <span class="sico">📌</span><span class="slbl">Pendientes</span>
+    </button>
+  </div>
+
+  <div id="mainArea">
+    <!-- contenido original aquí via JS -->
+    <div id="reportView">
+      <div id="rvSlicerToolbar">
+        <span class="slicer-tlbl">Slicers</span>
+        <button class="btn-cfg-s" id="btnCfgSlicers">⚙ Columnas</button>
+        <button class="btn-clr-s" id="btnClrSlicers" title="Elimina la configuración Personal y recarga el backlog desde el último registro">↺ Reiniciar avance</button>
+        <button class="btn-new-sot" id="btnNewSotBadge" style="display:none;">🆕 SOTs NUEVAS (<span id="newSotCount">0</span>)</button>
+        <span class="slicer-smry" id="slicerSmry"></span>
+      </div>
+      <div id="rvSlicerBar"></div>
+      <div class="rv-twrap">
+        <div class="rv-scroll">
+          <table class="rv-tbl"><colgroup id="rvColgroup"></colgroup><thead><tr id="rvHead"></tr></thead><tbody id="rvBody"></tbody></table>
+          <div class="rv-empty" id="rvEmpty" style="display:none;">
+            <div style="font-size:30px;margin-bottom:8px;">🗂️</div>
+            <span id="rvEmptyMsg">Valida la data maestra primero.</span>
+          </div>
+        </div>
+      </div>
+      <div class="rv-footbar">
+        <div class="rv-ind" id="rvInd">—</div>
+        <span id="rvSelInfo"></span>
+        <span class="rv-footbar-spacer"></span>
+        <button class="btn-copy" id="btnCopy">⎘ Copiar</button>
+        <button class="btn-exp-rv" id="btnExpRv">⬇ Exportar</button>
+      </div>
+    </div>
+
+    <!-- Página nueva: Dashboard -->
+    <div id="dashboardView">
+      <div class="dash-toolbar">
+        <span class="slicer-tlbl">📈 Dashboard</span>
+        <span class="dash-sub">Vista general del backlog</span>
+      </div>
+      <div class="dash-scroll">
+        <div class="dash-kpis" id="dashKpis"></div>
+        <div class="dash-grid">
+          <div class="dash-card">
+            <div class="dash-card-title">Por estado de proyecto</div>
+            <div class="dash-bars" id="dashByEstado"></div>
+          </div>
+          <div class="dash-card">
+            <div class="dash-card-title">Por zona</div>
+            <div class="dash-bars" id="dashByZona"></div>
+          </div>
+          <div class="dash-card">
+            <div class="dash-card-title">Por tipo de trabajo</div>
+            <div class="dash-bars" id="dashByTipo"></div>
+          </div>
+          <div class="dash-card">
+            <div class="dash-card-title">Por tipo de servicio</div>
+            <div class="dash-bars" id="dashByServicio"></div>
+          </div>
+        </div>
+        <div class="dash-empty" id="dashEmpty" style="display:none;">
+          <div style="font-size:30px;margin-bottom:8px;">🗂️</div>
+          Valida la data maestra primero para ver el dashboard.
+        </div>
+      </div>
+    </div>
+
+    <!-- Página nueva: Control de Pendientes (Kanban ágil) -->
+    <div id="pendientesView">
+      <div class="dash-toolbar">
+        <span class="slicer-tlbl">📌 Control de Pendientes</span>
+        <span class="dash-sub">Tablero ágil de tareas por SOT y por cliente</span>
+        <span class="rv-footbar-spacer"></span>
+        <button class="btn-secondary" id="btnAddKanbanCol">➕ Columna</button>
+        <button class="btn-primary" id="btnAddKanbanTask">➕ Nueva Tarea</button>
+      </div>
+      <div class="kanban-scroll" id="kanbanBoard"></div>
+    </div>
+
+    <!-- Página nueva: Registro de Backlogs (histórico diario) -->
+    <div id="registroView">
+      <div class="dash-toolbar">
+        <span class="slicer-tlbl">📜 Registro de Backlogs</span>
+        <span class="dash-sub" id="regSub">Histórico diario de backlogs guardados</span>
+      </div>
+      <div class="dash-scroll">
+        <div class="reg-empty" id="regEmpty" style="display:none;">
+          <div style="font-size:30px;margin-bottom:8px;">📜</div>
+          Aún no hay backlogs guardados. Usa el botón "Nuevo Backlog" para registrar el primero.
+        </div>
+        <div class="reg-twrap" id="regTwrap">
+          <table class="reg-tbl">
+            <thead><tr>
+              <th class="reg-th-chk"><input type="checkbox" id="regSelAll" title="Seleccionar todos"></th>
+              <th>#</th><th>Fecha</th><th>Hora</th><th>Seg.</th><th>Usuario</th>
+              <th>Columnas Validadas</th><th>Filas Validadas</th><th>Referencia del día</th><th>Data original</th>
+            </tr></thead>
+            <tbody id="regTbody"></tbody>
+          </table>
+        </div>
+        <div class="reg-cmp" id="regCmp" style="display:none;"></div>
+      </div>
+      <div class="reg-foot">
+        <span class="reg-sel-count" id="regSelCount"></span>
+        <span class="reg-foot-spacer"></span>
+        <button class="btn-danger" id="btnDeleteSelected" disabled>🗑 Eliminar</button>
+        <button class="btn-secondary" id="btnComparacionPage">🔍 Comparación</button>
+        <button class="btn-primary" id="btnNuevoBacklogPage">➕ Nuevo Backlog</button>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- ===== FIN SIDEBAR ===== -->
+
+
+<header class="topbar">
+  <div class="brand">
+    <span class="ping" aria-hidden="true"></span>
+    <div>
+      <h1>Paso 1 · Carga &amp; Validación de Data Maestra</h1>
+      <div class="sub">Fernando Chura · Telecomunicaciones · Backlog</div>
+    </div>
+  </div>
+  <div class="meta">Columnas esperadas: <strong id="expectedCountLabel">0</strong></div>
+</header>
+
+<div id="backlogModal">
+  <div class="bl-card">
+    <div class="bl-head">
+      <h3>📝 Registro de Backlog</h3>
+      <button class="scclose" id="blModalClose">✕</button>
+    </div>
+    <div class="bl-scroll">
+    <main>
+
+      <section class="cards" id="cardsSection">
+        <div class="card"><div class="label">Filas cargadas</div><div class="value" id="cardRows">0</div></div>
+        <div class="card"><div class="label">Columnas</div><div class="value" id="cardCols">0</div></div>
+        <div class="card"><div class="label">Filas vacías ignoradas</div><div class="value" id="cardEmpty">0</div></div>
+        <div class="card"><div class="label">Estado</div><div class="value" id="cardStatus" style="font-size:15px;">—</div></div>
+      </section>
+
+      <div id="compactBar">
+        <span class="status-pill ok" id="compactPill">✔ Cargado</span>
+        <span id="compactSummary">—</span>
+        <span class="grow"></span>
+        <button class="btn-secondary" id="btnExpandTop">▾ Mostrar resumen</button>
+        <button class="btn-secondary" id="btnReset">↺ Pegar otro backlog</button>
+        <button class="btn-secondary" id="btnDownloadMaster2">⬇ Descargar JSON</button>
+      </div>
+
+      <section class="table-wrap">
+        <div class="table-toolbar">
+          <div class="left-info">
+            <span class="hint"><b>Data maestra</b> — la cabecera es fija. Haz clic en la celda <b>A1</b> y pega (Ctrl+V) el backlog completo, incluyendo su fila de cabecera.</span>
+            <span class="hint" id="tableIndicator">0 filas en la cuadrícula.</span>
+          </div>
+          <div class="right">
+            <button class="btn-secondary" id="btnDownloadMaster">⬇ Descargar JSON</button>
+          </div>
+        </div>
+
+        <div class="table-scroll" id="tableScroll">
+          <table id="masterTable">
+            <thead><tr id="headRow"><th class="rownum-head">#</th></tr></thead>
+            <tbody id="bodyRows"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <div id="blValidatedInfo" class="bl-validated-info" style="display:none;">
+        ✔ <strong id="blColsValidated">0</strong> columnas validadas · <strong id="blRowsValidated">0</strong> filas validadas
+      </div>
+
+      <div class="bl-user-row">
+        <label for="blUserInput"><b>Usuario:</b></label>
+        <input type="text" id="blUserInput" placeholder="Tu nombre">
+      </div>
+
+    </main>
+    <footer class="note">Etapa 1: cuadrícula tipo Excel + validación estructural. Al validar, la fila de cabecera pegada se elimina (la cabecera ya queda fija arriba) y solo permanece la información. Filtros y clasificación se construyen en el siguiente paso.</footer>
+    </div>
+
+    <div class="bl-foot">
+      <label class="bl-ref-chk"><input type="checkbox" id="chkIsReference"> ☑ Usar como referencia de comparación</label>
+      <span class="bl-foot-spacer"></span>
+      <button class="btn-secondary" id="btnComparacion">🔍 Comparación</button>
+      <button class="btn-cancel" id="btnCancelarBacklog">Cancelar</button>
+      <button class="btn-primary bl-save-btn" id="btnGuardarBacklog">💾 Guardar</button>
+      <button class="btn-primary" id="btnValidate">✔ Validar columnas, filas y cabecera</button>
+    </div>
+  </div>
+</div>
+
+
+<div class="cell-tooltip" id="cellTooltip"></div>
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal-card">
+    <div class="modal-head">
+      <span class="icon" id="modalIcon">✔</span>
+      <h3 id="modalTitle">Validación completada</h3>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-foot" id="modalFoot"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ============================================================
+   NOTIFICACIONES TOAST — reemplazan al alert() nativo del navegador
+   ============================================================ */
+function showToast(type, icon, title, msg, duration){
+  const cont = document.getElementById('toastContainer');
+  if(!cont)return;
+  const el = document.createElement('div');
+  el.className = 'toast toast-' + (type||'info');
+  el.innerHTML =
+    '<span class="toast-icon">'+(icon||'ℹ️')+'</span>'+
+    '<div class="toast-body">'+
+      (title ? '<div class="toast-title">'+title+'</div>' : '')+
+      '<div class="toast-msg">'+msg+'</div>'+
+    '</div>'+
+    '<button class="toast-close" type="button" aria-label="Cerrar">✕</button>';
+  cont.appendChild(el);
+  const remove = ()=>{
+    el.classList.add('toast-leave');
+    setTimeout(()=> el.remove(), 220);
+  };
+  el.querySelector('.toast-close').addEventListener('click', remove);
+  setTimeout(remove, duration || 5000);
+}
+window.showToast = showToast;
+
+/* ============================================================
+   CABECERA ESPERADA (FIJA) — se pinta una sola vez en el <thead>
+   ============================================================ */
+const EXPECTED_HEADERS = [
+  "dur_proyecto","dias_trans","tiempo_trans","estproyecto","fecapr","feccom","numslc","codsolot",
+  "fecrep","estsol","cid","admproyecto","usuarioresp","codcli","ruc","cliente","tipotrabajo",
+  "tiposervicio","direccion","distrito","provincia","departamento","zona","descripcion","campanha",
+  "estadoadpdesc","observacionadp","fechaobsadp","t_obsadp","estadoadp","grupo_seg","segmentocliente",
+  "sectorcliente","ejecutivodatos","supvta","tip_ect","estado_sot","fec_gen","revisado",
+  "fecha_activacion","fecha_atendido","usu_atendido","flg_portable","nom_aprsef","workflow","durcon",
+  "seleccion","tiptra","etiq_pri","prod_pri","equ_sot","nom_apref","fecusu","cnr_pen","cr_neto_pen",
+  "ugis","costo_fact","factcli_pen","flg_costest","contrato","pop_site","medio_tx","prycon","grado",
+  "solmedida","concurso","idwf","codsuc","coordsuc_dec","areasol","sec","nro_licitacion",
+  "mascara_nro_licitacion","codsolotrem"
+];
+const COL_COUNT = EXPECTED_HEADERS.length;
+window.EXPECTED_HEADERS = EXPECTED_HEADERS; // accesible también desde el otro bloque <script>
+const INITIAL_EMPTY_ROWS = 20;
+const LS_MASTER = "cck_master_data_v1";
+
+let masterData = null;     // {headers, rows, loadedAt} una vez confirmada
+let locked = false;        // true cuando la cuadrícula ya fue validada y confirmada
+let lastRawPaste = '';     // TSV exacto tal cual fue pegado (sin transformaciones)
+
+document.getElementById('expectedCountLabel').textContent = COL_COUNT;
+
+/* ============================================================
+   UTILIDADES
+   ============================================================ */
+function escapeHtml(s){
+  return (s===undefined||s===null?'':s.toString())
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function nowLabel(){
+  const d = new Date();
+  const pad = n=> n<10?'0'+n:''+n;
+  return pad(d.getDate())+'/'+pad(d.getMonth()+1)+'/'+d.getFullYear()+' '+pad(d.getHours())+':'+pad(d.getMinutes());
+}
+
+/* ============================================================
+   CONSTRUCCIÓN DE LA CUADRÍCULA (cabecera fija + celdas editables)
+   ============================================================ */
+const headRowEl = document.getElementById('headRow');
+EXPECTED_HEADERS.forEach(h=>{
+  const th = document.createElement('th');
+  th.textContent = h;
+  headRowEl.appendChild(th);
+});
+
+const bodyRowsEl = document.getElementById('bodyRows');
+
+function buildRow(rowIndex){
+  const tr = document.createElement('tr');
+  tr.dataset.row = rowIndex;
+  const rownum = document.createElement('td');
+  rownum.className = 'rownum';
+  rownum.textContent = rowIndex+1;
+  tr.appendChild(rownum);
+  for(let c=0;c<COL_COUNT;c++){
+    const td = document.createElement('td');
+    td.className = 'cell';
+    td.contentEditable = 'true';
+    td.dataset.row = rowIndex;
+    td.dataset.col = c;
+    tr.appendChild(td);
+  }
+  return tr;
+}
+function addEmptyRows(n){
+  const startIndex = bodyRowsEl.children.length;
+  for(let i=0;i<n;i++){
+    bodyRowsEl.appendChild(buildRow(startIndex+i));
+  }
+}
+function getRowEl(rowIndex){ return bodyRowsEl.children[rowIndex]; }
+function ensureRowExists(rowIndex){
+  while(bodyRowsEl.children.length <= rowIndex){
+    bodyRowsEl.appendChild(buildRow(bodyRowsEl.children.length));
+  }
+}
+function getCell(rowIndex, colIndex){
+  const row = getRowEl(rowIndex);
+  if(!row) return null;
+  return row.children[colIndex+1] || null; // +1 por la columna de número de fila
+}
+function isRowEmpty(rowEl){
+  for(let i=1;i<rowEl.children.length;i++){
+    if(rowEl.children[i].textContent.trim() !== '') return false;
+  }
+  return true;
+}
+function updateRowNumbers(){
+  Array.from(bodyRowsEl.children).forEach((tr,i)=>{
+    tr.dataset.row = i;
+    tr.children[0].textContent = i+1;
+    for(let c=1;c<tr.children.length;c++){
+      tr.children[c].dataset.row = i;
+    }
+  });
+}
+function updateIndicator(){
+  const total = bodyRowsEl.children.length;
+  const conContenido = Array.from(bodyRowsEl.children).filter(tr=> !isRowEmpty(tr)).length;
+  document.getElementById('tableIndicator').textContent =
+    total + ' filas en la cuadrícula (' + conContenido + ' con contenido).';
+}
+
+addEmptyRows(INITIAL_EMPTY_ROWS);
+updateIndicator();
+
+/* ============================================================
+   PARSER DE PORTAPAPELES ESTILO EXCEL (TSV con comillas)
+   Excel envuelve en comillas dobles las celdas que contienen
+   saltos de línea internos, tabulaciones o comillas. Si solo
+   separáramos por "\n" esas celdas multiplicarían las filas
+   (ej: 38 filas reales -> 191 filas falsas). Este parser respeta
+   las comillas y reconstruye la grilla real fila por fila.
+   ============================================================ */
+function parseClipboardGrid(raw){
+  const rows = [];
+  let row = [];
+  let field = '';
+  let inQuotes = false;
+
+  for(let i=0;i<raw.length;i++){
+    const ch = raw[i];
+    if(inQuotes){
+      if(ch === '"'){
+        if(raw[i+1] === '"'){ field += '"'; i++; }   // comilla escapada ""
+        else { inQuotes = false; }                     // cierre de comillas
+      } else {
+        field += ch; // dentro de comillas: \n y \t son parte literal de la celda
+      }
+    } else {
+      if(ch === '"' && field === ''){
+        // Solo cuenta como apertura de campo "citado" (regla CSV/TSV) si la
+        // comilla es el PRIMER carácter del campo. Si aparece a mitad de un
+        // campo sin comillas (ej. una coordenada 4.25"S), es texto literal.
+        inQuotes = true;
+      } else if(ch === '\t'){
+        row.push(field); field = '';
+      } else if(ch === '\r'){
+        // se ignora, el salto real lo marca \n
+      } else if(ch === '\n'){
+        row.push(field); rows.push(row); row = []; field = '';
+      } else {
+        field += ch;
+      }
+    }
+  }
+  if(field !== '' || row.length){ row.push(field); rows.push(row); }
+
+  // aplanar saltos de línea / tabs que quedaron LITERALES dentro de
+  // celdas que venían entre comillas, a un solo espacio (una fila = un registro)
+  return rows.map(r=> r.map(v=> v.replace(/\r\n|\r|\n/g,' ').replace(/\t/g,' ').trim()));
+}
+
+/* ============================================================
+   PEGADO ESTILO EXCEL — comienza en la celda donde se hizo clic
+   ============================================================ */
+bodyRowsEl.addEventListener('paste', function(e){
+  if(locked) return;
+  const target = e.target.closest('td.cell');
+  if(!target) return;
+  e.preventDefault();
+
+  const raw = (e.clipboardData || window.clipboardData).getData('text/plain');
+  if(!raw) return;
+  lastRawPaste = raw; // se conserva exactamente como fue pegado (tabs, cabecera, orden)
+  try{ localStorage.setItem('cck_last_raw_paste', raw); }catch(err){}
+
+  const startRow = parseInt(target.dataset.row, 10);
+  const startCol = parseInt(target.dataset.col, 10);
+
+  const grid = parseClipboardGrid(raw);
+  while(grid.length && grid[grid.length-1].every(c=> c === '')) grid.pop();
+
+  grid.forEach((cells, r)=>{
+    const targetRow = startRow + r;
+    ensureRowExists(targetRow);
+    cells.forEach((val, c)=>{
+      const targetCol = startCol + c;
+      if(targetCol >= COL_COUNT) return; // se ignoran columnas sobrantes
+      const cell = getCell(targetRow, targetCol);
+      if(cell) cell.textContent = val;
+    });
+  });
+
+  updateIndicator();
+});
+
+/* ============================================================
+   TOOLTIP FLOTANTE — muestra contenido completo al hacer hover
+   Solo se activa cuando el texto está truncado (scrollWidth > offsetWidth)
+   ============================================================ */
+const tooltip = document.getElementById('cellTooltip');
+let tooltipTimer = null;
+
+bodyRowsEl.addEventListener('mouseover', function(e){
+  const td = e.target.closest('td.cell');
+  if(!td) return;
+  // Solo mostrar si el texto realmente está cortado
+  if(td.scrollWidth <= td.offsetWidth + 2) return;
+  const text = td.textContent.trim();
+  if(!text) return;
+  clearTimeout(tooltipTimer);
+  tooltipTimer = setTimeout(()=>{
+    tooltip.textContent = text;
+    tooltip.style.display = 'block';
+    positionTooltip(e);
+  }, 320); // pequeño delay para no disparar en pasos rápidos del mouse
+});
+
+bodyRowsEl.addEventListener('mousemove', function(e){
+  if(tooltip.style.display === 'block') positionTooltip(e);
+});
+
+bodyRowsEl.addEventListener('mouseout', function(e){
+  const td = e.target.closest('td.cell');
+  if(!td) return;
+  clearTimeout(tooltipTimer);
+  tooltip.style.display = 'none';
+});
+
+bodyRowsEl.addEventListener('mousedown', function(){
+  clearTimeout(tooltipTimer);
+  tooltip.style.display = 'none';
+});
+
+function positionTooltip(e){
+  const margin = 14;
+  const tw = tooltip.offsetWidth || 380;
+  const th = tooltip.offsetHeight || 60;
+  let x = e.clientX + margin;
+  let y = e.clientY + margin;
+  if(x + tw > window.innerWidth - 8) x = e.clientX - tw - margin;
+  if(y + th > window.innerHeight - 8) y = e.clientY - th - margin;
+  tooltip.style.left = x + 'px';
+  tooltip.style.top  = y + 'px';
+}
+
+/* Navegación básica tipo Excel: Enter baja, Tab avanza */
+bodyRowsEl.addEventListener('keydown', function(e){
+  if(locked) return;
+  const target = e.target.closest('td.cell');
+  if(!target) return;
+  const row = parseInt(target.dataset.row,10);
+  const col = parseInt(target.dataset.col,10);
+  if(e.key === 'Enter'){
+    e.preventDefault();
+    ensureRowExists(row+1);
+    const next = getCell(row+1, col);
+    if(next){ next.focus(); placeCaretEnd(next); }
+  } else if(e.key === 'Tab'){
+    e.preventDefault();
+    let nextRow = row, nextCol = col+1;
+    if(nextCol >= COL_COUNT){ nextCol = 0; nextRow = row+1; ensureRowExists(nextRow); }
+    const next = getCell(nextRow, nextCol);
+    if(next){ next.focus(); placeCaretEnd(next); }
+  }
+});
+function placeCaretEnd(el){
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  range.collapse(false);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+bodyRowsEl.addEventListener('input', function(e){
+  if(e.target.classList && e.target.classList.contains('cell')) updateIndicator();
+});
+
+/* ============================================================
+   MODAL FLOTANTE
+   ============================================================ */
+const modalOverlay = document.getElementById('modalOverlay');
+const modalIcon = document.getElementById('modalIcon');
+const modalTitle = document.getElementById('modalTitle');
+const modalBody = document.getElementById('modalBody');
+const modalFoot = document.getElementById('modalFoot');
+
+function openModal(){ modalOverlay.style.display='flex'; }
+function closeModal(){ modalOverlay.style.display='none'; }
+modalOverlay.addEventListener('click', (e)=>{ if(e.target===modalOverlay) closeModal(); });
+
+function simpleModal(icon, color, title, bodyHtml, footHtml){
+  modalIcon.textContent = icon;
+  modalIcon.parentElement.style.color = color;
+  modalTitle.textContent = title;
+  modalBody.innerHTML = bodyHtml;
+  modalFoot.innerHTML = footHtml;
+  openModal();
+}
+
+/* ============================================================
+   VALIDACIÓN: columnas, cabecera y fin de datos
+   ============================================================ */
+function clearMismatchHighlights(){
+  bodyRowsEl.querySelectorAll('.cell-mismatch').forEach(td=> td.classList.remove('cell-mismatch'));
+}
+
+document.getElementById('btnValidate').addEventListener('click', ()=>{
+  if(locked) return;
+  if(bodyRowsEl.children.length === 0){
+    simpleModal('✖','#8C1232','Sin datos','<span class="hint">La cuadrícula está vacía. Pega el backlog en la celda A1 antes de validar.</span>',
+      '<button class="btn-cancel" id="modalCancel">Cerrar</button>');
+    document.getElementById('modalCancel').addEventListener('click', closeModal);
+    return;
+  }
+
+  clearMismatchHighlights();
+  const firstRow = getRowEl(0);
+  const gotHeaders = [];
+  for(let c=0;c<COL_COUNT;c++){ gotHeaders.push((getCell(0,c).textContent||'').trim()); }
+
+  const positional = [];
+  for(let i=0;i<COL_COUNT;i++){
+    if(gotHeaders[i] !== EXPECTED_HEADERS[i]){
+      positional.push({index:i, expected:EXPECTED_HEADERS[i], got: gotHeaders[i] || '(vacío)'});
+    }
+  }
+  const expectedSet = new Set(EXPECTED_HEADERS);
+  const gotSet = new Set(gotHeaders);
+  const faltantes = EXPECTED_HEADERS.filter(h=> !gotSet.has(h));
+  const sobrantes = gotHeaders.filter(h=> h && !expectedSet.has(h));
+
+  if(positional.length === 0){
+    confirmMaster(false);
+    return;
+  }
+
+  positional.forEach(p=> getCell(0,p.index).classList.add('cell-mismatch'));
+  showHeaderErrorModal({positional, faltantes, sobrantes});
+});
+
+function showHeaderErrorModal(result){
+  let html = '<span class="status-badge error">La fila 1 no coincide exactamente con la cabecera esperada ('+result.positional.length+' diferencia(s))</span>';
+  html += '<div class="diff-grid">';
+  html += '<div class="diff-col"><h4>Esperadas que no aparecen ('+result.faltantes.length+')</h4>'+
+    '<div class="diff-list">'+(result.faltantes.length ? result.faltantes.map(f=>'<div class="item">'+escapeHtml(f)+'</div>').join('') : '<div class="item">— ninguna —</div>')+'</div></div>';
+  html += '<div class="diff-col"><h4>En la fila 1, no esperadas ('+result.sobrantes.length+')</h4>'+
+    '<div class="diff-list">'+(result.sobrantes.length ? result.sobrantes.map(f=>'<div class="item">'+escapeHtml(f)+'</div>').join('') : '<div class="item">— ninguna —</div>')+'</div></div>';
+  html += '</div>';
+  html += '<div style="margin-top:10px;"><h4 style="font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);margin:0 0 6px;">Diferencias por columna</h4>'+
+    '<div class="diff-list" style="max-height:160px;">'+
+    result.positional.map(p=> '<div class="pos-mismatch"><span class="idx">Col '+(p.index+1)+'</span><span class="exp">esperado: '+escapeHtml(p.expected)+'</span><span class="got">pegado: '+escapeHtml(p.got)+'</span></div>').join('')+
+    '</div></div>'+
+    '<p class="hint" style="margin-top:10px;font-size:12px;color:var(--ink-soft);">Las celdas en conflicto quedaron resaltadas en rojo en la fila 1 — puedes corregirlas directamente en la cuadrícula.</p>';
+
+  const foot = '<button class="btn-cancel" id="modalCancel">Cerrar y corregir</button>'+
+    '<button class="btn-force" id="modalForce">Forzar (eliminar fila 1 igual)</button>';
+  simpleModal('✖', '#8C1232', 'La cabecera pegada no coincide', html, foot);
+  document.getElementById('modalCancel').addEventListener('click', closeModal);
+  document.getElementById('modalForce').addEventListener('click', ()=>{
+    closeModal();
+    confirmMaster(true);
+  });
+}
+
+/* ============================================================
+   CONFIRMAR DATA MAESTRA: quitar fila de cabecera pegada,
+   limpiar filas vacías y bloquear la cuadrícula
+   ============================================================ */
+function confirmMaster(forced){
+  // quitar la fila 1 (la cabecera pegada, ya redundante con la cabecera fija)
+  const headerRow = getRowEl(0);
+  if(headerRow) headerRow.remove();
+  updateRowNumbers();
+
+  // quitar filas completamente vacías (sobrantes de la cuadrícula inicial o huecos)
+  let emptyRemoved = 0;
+  Array.from(bodyRowsEl.children).forEach(tr=>{
+    if(isRowEmpty(tr)){ tr.remove(); emptyRemoved++; }
+  });
+  updateRowNumbers();
+
+  const finalRows = bodyRowsEl.children.length;
+
+  // construir data maestra en memoria / localStorage
+  const rows = Array.from(bodyRowsEl.children).map(tr=>{
+    const rec = {};
+    for(let c=0;c<COL_COUNT;c++){ rec[EXPECTED_HEADERS[c]] = tr.children[c+1].textContent.trim(); }
+    return rec;
+  });
+  masterData = {headers: EXPECTED_HEADERS.slice(), rows, loadedAt: nowLabel()};
+  localStorage.setItem(LS_MASTER, JSON.stringify(masterData));
+
+  document.getElementById('cardRows').textContent = finalRows;
+  document.getElementById('cardCols').textContent = COL_COUNT;
+  document.getElementById('cardEmpty').textContent = emptyRemoved;
+  document.getElementById('cardStatus').textContent = forced ? '⚠ Forzado' : '✔ Válido';
+
+  const vi=document.getElementById('blValidatedInfo');
+  if(vi){
+    document.getElementById('blColsValidated').textContent = COL_COUNT;
+    document.getElementById('blRowsValidated').textContent = finalRows;
+    vi.style.display='block';
+    clearTimeout(vi._hideTimer);
+    vi._hideTimer=setTimeout(()=>{ vi.style.display='none'; }, 4500);
+  }
+
+  lockGrid();
+  updateIndicator();
+
+  showSuccessModal({rows: finalRows, cols: COL_COUNT, empty: emptyRemoved}, forced);
+}
+
+function lockGrid(){
+  locked = true;
+  bodyRowsEl.querySelectorAll('td.cell').forEach(td=>{
+    td.contentEditable = 'false';
+    td.classList.add('locked');
+  });
+  document.getElementById('btnValidate').disabled = true;
+}
+function unlockGrid(){
+  locked = false;
+  bodyRowsEl.querySelectorAll('td.cell').forEach(td=>{
+    td.contentEditable = 'true';
+    td.classList.remove('locked');
+  });
+  document.getElementById('btnValidate').disabled = false;
+}
+
+function showSuccessModal(stats, forced){
+  const badgeClass = forced ? 'forced' : 'ok';
+  const badgeText = forced
+    ? 'Se forzó la eliminación de la fila 1 aunque no coincidía exactamente con la cabecera esperada.'
+    : 'La fila 1 coincidía exactamente con la cabecera esperada y fue retirada — la cabecera fija ya la representa.';
+  const html =
+    '<span class="status-badge '+badgeClass+'">'+badgeText+'</span>'+
+    '<div class="modal-cards">'+
+      '<div class="mc"><div class="label">Filas agregadas</div><div class="value">'+stats.rows+'</div></div>'+
+      '<div class="mc"><div class="label">Columnas</div><div class="value">'+stats.cols+'</div></div>'+
+      '<div class="mc"><div class="label">Vacías ignoradas</div><div class="value">'+stats.empty+'</div></div>'+
+    '</div>'+
+    '<p class="hint" style="margin:10px 0 0;font-size:12.5px;color:var(--ink-soft);">Al aceptar, el resumen se minimiza y la cuadrícula queda bloqueada como data maestra confirmada.</p>';
+  const foot = '<button class="btn-primary" id="modalAccept">Aceptar</button>';
+  simpleModal(forced?'⚠':'✔', forced?'#7A4E00':'#176B45', forced?'Carga forzada completada':'Cabecera válida — Data maestra confirmada', html, foot);
+  document.getElementById('modalAccept').addEventListener('click', ()=>{
+    closeModal();
+    collapseTopPanels(stats, forced);
+  });
+}
+
+/* ============================================================
+   COLAPSAR / EXPANDIR RESUMEN
+   ============================================================ */
+function collapseTopPanels(stats, forced){
+  document.getElementById('cardsSection').style.display = 'none';
+  const compactBar = document.getElementById('compactBar');
+  compactBar.style.display = 'flex';
+  const pill = document.getElementById('compactPill');
+  pill.textContent = forced ? '⚠ Forzado' : '✔ Cargado';
+  pill.className = 'status-pill ' + (forced ? 'forced' : 'ok');
+  document.getElementById('compactSummary').textContent =
+    stats.rows + ' filas · ' + stats.cols + ' columnas · ' + stats.empty + ' vacías ignoradas · cargado ' + masterData.loadedAt;
+}
+document.getElementById('btnExpandTop').addEventListener('click', ()=>{
+  document.getElementById('cardsSection').style.display = 'grid';
+  document.getElementById('compactBar').style.display = 'none';
+});
+document.getElementById('btnReset').addEventListener('click', ()=>{
+  if(masterData && masterData.rows.length){
+    if(!confirm('¿Deseas limpiar la cuadrícula y pegar un nuevo backlog? Se perderá lo que no hayas descargado.')) return;
+  }
+  resetGrid();
+});
+
+function resetGrid(){
+  masterData = null;
+  bodyRowsEl.innerHTML = '';
+  addEmptyRows(INITIAL_EMPTY_ROWS);
+  unlockGrid();
+  updateIndicator();
+  document.getElementById('cardRows').textContent = '0';
+  document.getElementById('cardCols').textContent = '0';
+  document.getElementById('cardEmpty').textContent = '0';
+  document.getElementById('cardStatus').textContent = '—';
+  document.getElementById('cardsSection').style.display = 'grid';
+  document.getElementById('compactBar').style.display = 'none';
+  const vi=document.getElementById('blValidatedInfo');
+  if(vi){vi.style.display='none';clearTimeout(vi._hideTimer);}
+  const first = getCell(0,0);
+  if(first) first.focus();
+}
+
+/* ============================================================
+   DESCARGA JSON
+   ============================================================ */
+function downloadMasterJSON(){
+  if(!masterData || !masterData.rows.length){
+    alert('No hay data maestra confirmada para descargar.');
+    return;
+  }
+  const blob = new Blob([JSON.stringify(masterData, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'data_maestra_backlog.json';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+document.getElementById('btnDownloadMaster').addEventListener('click', downloadMasterJSON);
+document.getElementById('btnDownloadMaster2').addEventListener('click', downloadMasterJSON);
+
+/* ============================================================
+   MODAL "REGISTRO DE BACKLOG" — abrir / cerrar
+   ============================================================ */
+const backlogModal = document.getElementById('backlogModal');
+function openBacklogModal(){ resetGrid(); backlogModal.classList.add('open'); }
+function closeBacklogModal(){ backlogModal.classList.remove('open'); }
+window.openBacklogModal = openBacklogModal; // usado por el botón "Nuevo Backlog" del strip lateral
+document.getElementById('blModalClose').addEventListener('click', closeBacklogModal);
+document.getElementById('btnCancelarBacklog').addEventListener('click', closeBacklogModal);
+backlogModal.addEventListener('click', e=>{ if(e.target===backlogModal) closeBacklogModal(); });
+
+/* ============================================================
+   USUARIO — se recuerda el último nombre usado
+   ============================================================ */
+const LS_USER = 'cck_last_user';
+const LS_RAW_PASTE = 'cck_last_raw_paste';
+const blUserInput = document.getElementById('blUserInput');
+blUserInput.value = localStorage.getItem(LS_USER) || '';
+blUserInput.addEventListener('input', ()=> localStorage.setItem(LS_USER, blUserInput.value.trim()));
+try{ lastRawPaste = localStorage.getItem(LS_RAW_PASTE) || ''; }catch(e){}
+
+/* ============================================================
+   HISTORIAL DE BACKLOGS GUARDADOS
+   ============================================================ */
+const LS_HISTORY = 'cck_backlog_history_v1';
+function getHistory(){
+  try{ return JSON.parse(localStorage.getItem(LS_HISTORY) || '[]'); }catch(e){ return []; }
+}
+function saveHistory(list){ localStorage.setItem(LS_HISTORY, JSON.stringify(list)); }
+
+const regSelected = new Set(); // ids seleccionados para eliminación múltiple
+function renderBacklogHistory(){
+  const list = getHistory().slice().sort((a,b)=> b.ts - a.ts); // más reciente primero
+  const sub=document.getElementById('regSub');
+  if(sub)sub.textContent = list.length ? `${list.length} backlog(s) guardado(s) · histórico diario` : 'Histórico diario de backlogs guardados';
+  const twrap=document.getElementById('regTwrap'), empty=document.getElementById('regEmpty'), tbody=document.getElementById('regTbody');
+  if(!tbody)return;
+  // limpia selección de ids que ya no existen
+  const validIds=new Set(list.map(r=>r.id));
+  [...regSelected].forEach(id=>{ if(!validIds.has(id)) regSelected.delete(id); });
+  if(!list.length){
+    if(twrap)twrap.style.display='none';
+    if(empty)empty.style.display='block';
+    tbody.innerHTML='';
+    updateRegSelUI();
+    return;
+  }
+  if(twrap)twrap.style.display='';
+  if(empty)empty.style.display='none';
+  tbody.innerHTML = list.map((r,i)=>`
+    <tr data-id="${r.id}" class="${regSelected.has(r.id)?'reg-row-sel':''}">
+      <td class="reg-td-chk"><input type="checkbox" class="reg-row-chk" data-id="${r.id}" ${regSelected.has(r.id)?'checked':''}></td>
+      <td>${i+1}</td>
+      <td>${escapeHtml(r.dateFull)}</td>
+      <td>${escapeHtml(r.hh)}:${escapeHtml(r.mm)}</td>
+      <td>${escapeHtml(r.ss)}</td>
+      <td>${escapeHtml(r.user||'—')}</td>
+      <td>${r.colsValidated}</td>
+      <td>${r.rowsValidated}</td>
+      <td>${r.isReference ? '<span class="reg-ref-badge">★ Referencia del día</span>' : '—'}</td>
+      <td><button class="reg-copy-btn" data-copy="${r.id}">⎘ Copiar</button></td>
+    </tr>`).join('');
+  tbody.querySelectorAll('.reg-copy-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const rec = list.find(r=> r.id === btn.dataset.copy);
+      if(!rec) return;
+      navigator.clipboard?.writeText(rec.rawTSV || '');
+      const orig = btn.textContent; btn.textContent = '✓ Copiado';
+      setTimeout(()=> btn.textContent = orig, 1200);
+    });
+  });
+  tbody.querySelectorAll('.reg-row-chk').forEach(cb=>{
+    cb.addEventListener('change', ()=>{
+      if(cb.checked) regSelected.add(cb.dataset.id); else regSelected.delete(cb.dataset.id);
+      cb.closest('tr').classList.toggle('reg-row-sel', cb.checked);
+      updateRegSelUI();
+    });
+  });
+  updateRegSelUI();
+}
+function updateRegSelUI(){
+  const n=regSelected.size;
+  const cnt=document.getElementById('regSelCount');
+  const delBtn=document.getElementById('btnDeleteSelected');
+  const selAll=document.getElementById('regSelAll');
+  if(cnt)cnt.textContent = n>0 ? `${n} seleccionado(s)` : '';
+  if(delBtn)delBtn.disabled = n===0;
+  if(selAll){
+    const rows=document.querySelectorAll('#regTbody tr');
+    selAll.checked = rows.length>0 && n===rows.length;
+    selAll.indeterminate = n>0 && n<rows.length;
+  }
+}
+document.getElementById('regSelAll')?.addEventListener('change', e=>{
+  const checked=e.target.checked;
+  document.querySelectorAll('.reg-row-chk').forEach(cb=>{
+    cb.checked=checked;
+    if(checked) regSelected.add(cb.dataset.id); else regSelected.delete(cb.dataset.id);
+    cb.closest('tr').classList.toggle('reg-row-sel', checked);
+  });
+  updateRegSelUI();
+});
+document.getElementById('btnDeleteSelected')?.addEventListener('click', ()=>{
+  if(!regSelected.size)return;
+  const n=regSelected.size;
+  if(!confirm(`¿Eliminar ${n} backlog(s) del registro? Esta acción no se puede deshacer.`))return;
+  const list = getHistory().filter(r=> !regSelected.has(r.id));
+  saveHistory(list);
+  regSelected.clear();
+  renderBacklogHistory();
+  // Si ya no queda ningún backlog guardado, Control de Backlog tampoco debe
+  // mostrar contenido "huérfano": se limpia la data cargada, las SOT cerradas
+  // y cualquier resultado de comparación (SOTs Nuevas) que haya quedado obsoleto.
+  if(!list.length){
+    try{
+      localStorage.removeItem(LS_MASTER);
+      localStorage.removeItem('cck_closed_sot_v1');
+      localStorage.removeItem('cck_new_sot_result_v1');
+    }catch(e){}
+    masterData = null;
+    window.renderNewSotBadge?.();
+  }
+});
+window.renderBacklogHistory = renderBacklogHistory;
+
+/* Recarga la data maestra desde el ÚLTIMO registro guardado en "Registro de Backlogs".
+   Devuelve {rows, rec} o null si no hay registros / el registro no tiene data. */
+window.reloadMasterFromLatestRecord = function(){
+  const list = getHistory().slice().sort((a,b)=> b.ts - a.ts);
+  const rec = list[0];
+  if(!rec || !rec.rawTSV) return null;
+  const parsed = parseReferenceRows(rec.rawTSV);
+  if(!parsed.length) return null;
+  masterData = {headers: EXPECTED_HEADERS.slice(), rows: parsed, loadedAt: (rec.dateFull||'')+' '+(rec.hh||'')+':'+(rec.mm||'')};
+  try{
+    localStorage.setItem('cck_closed_sot_v1','[]'); // el registro vigente es la fuente: no se arrastran SOT cerradas
+    localStorage.setItem(LS_MASTER, JSON.stringify(masterData));
+  }catch(e){ return null; }
+  return {rows: parsed.length, rec};
+};
+
+/* ============================================================
+   GUARDAR — registra un nuevo backlog en el historial
+   ============================================================ */
+document.getElementById('btnGuardarBacklog').addEventListener('click', ()=>{
+  if(!masterData || !masterData.rows || !masterData.rows.length){
+    alert('Primero valida el backlog (botón "Validar columnas, filas y cabecera") antes de guardar.');
+    return;
+  }
+  const d = new Date();
+  const pad = n=> n<10 ? '0'+n : ''+n;
+  const record = {
+    id: 'bl_' + d.getTime() + '_' + Math.random().toString(36).slice(2,8),
+    ts: d.getTime(),
+    dateFull: pad(d.getDate())+'/'+pad(d.getMonth()+1)+'/'+d.getFullYear(),
+    timeFull: pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds()),
+    hh: pad(d.getHours()), mm: pad(d.getMinutes()), ss: pad(d.getSeconds()),
+    user: blUserInput.value.trim() || 'Usuario',
+    colsValidated: COL_COUNT,
+    rowsValidated: masterData.rows.length,
+    isReference: document.getElementById('chkIsReference').checked,
+    rawTSV: lastRawPaste
+  };
+  const list = getHistory();
+  list.push(record);
+  saveHistory(list);
+  renderBacklogHistory();
+  closeBacklogModal();
+  window.setActivePage?.('registro');window.showRegistro?.();
+  // Comparar automáticamente contra el backlog/referencia anterior a este
+  // guardado (se excluye el propio registro recién creado), sin importar si
+  // este nuevo guardado se marcó a su vez como referencia del día.
+  if(latestReference(record.id)){
+    runComparacion(record.id);
+  }
+});
+
+/* ============================================================
+   COMPARACIÓN — backlog actual vs. último marcado como referencia
+   Se muestra de forma inline en la página "Registro de Backlogs",
+   ya NO es una ventana flotante.
+   ============================================================ */
+function parseReferenceRows(rawTSV){
+  const grid = parseClipboardGrid(rawTSV);
+  if(grid.length) grid.shift(); // primera línea = cabecera pegada, se descarta igual que al validar
+  return grid.filter(cells=> cells.some(c=>c!=='')).map(cells=>{
+    const rec = {};
+    for(let c=0;c<COL_COUNT;c++){ rec[EXPECTED_HEADERS[c]] = (cells[c]||'').trim(); }
+    return rec;
+  });
+}
+function latestReference(excludeId){
+  // Únicamente se valida contra el último "Registro de Backlog" que tenga
+  // activo el check "★ Referencia del día". Sin fallback a otros registros.
+  const list = getHistory().filter(r=> r.isReference && r.id!==excludeId).sort((a,b)=> b.ts - a.ts);
+  return list[0] || null;
+}
+function runComparacion(excludeId){
+  const ref = latestReference(excludeId);
+  const cmp = document.getElementById('regCmp');
+  if(!cmp)return;
+  cmp.style.display='block';
+  if(!ref){
+    cmp.innerHTML = '<div class="cmp-empty">No hay ningún backlog guardado como referencia todavía. Guarda uno marcando "☑ Usar como referencia de comparación".</div>';
+    return;
+  }
+  const currentRows = (masterData && masterData.rows) ? masterData.rows : [];
+  if(!currentRows.length){
+    cmp.innerHTML = '<div class="cmp-empty">No hay un backlog cargado actualmente para comparar. Valida uno primero.</div>';
+    return;
+  }
+  const refRows = parseReferenceRows(ref.rawTSV || '');
+  const curMap = new Map(currentRows.map(r=>[ (r.codsolot||'').trim(), r]));
+  const refMap = new Map(refRows.map(r=>[ (r.codsolot||'').trim(), r]));
+
+  const added = [...curMap.keys()].filter(k=> k && !refMap.has(k));
+  const removed = [...refMap.keys()].filter(k=> k && !curMap.has(k));
+  const common = [...curMap.keys()].filter(k=> k && refMap.has(k));
+
+  // ── Lógica de comparación: identificar únicamente SOT nuevas (por valor de SOT) ──
+  try{
+    const newSotResult = {
+      ts: Date.now(),
+      count: added.length,
+      refLabel: (ref.dateFull||'')+' '+(ref.timeFull||''),
+      sots: added.map(k=>{
+        const r=curMap.get(k)||{};
+        return {sot:k, proyecto:r.descripcion||'', cliente:r.cliente||'', zona:r.zona||'', estado:r.estproyecto||''};
+      })
+    };
+    localStorage.setItem('cck_new_sot_result_v1', JSON.stringify(newSotResult));
+  }catch(e){}
+  window.renderNewSotBadge?.();
+  if(added.length>0){
+    window.showToast?.('success','🆕','SOTs nuevas detectadas','Se encontraron <b>'+added.length+'</b> nueva'+(added.length===1?'':'s')+' SOT respecto a la referencia comparada.');
+  }else{
+    window.showToast?.('info','✔','Sin novedades','No se encontraron nuevas SOT respecto a la referencia comparada.');
+  }
+
+  // Persistir las SOT Cerradas para que ya no aparezcan en "Control de Backlog"
+  try{
+    const closedKey='cck_closed_sot_v1';
+    const prev=new Set(JSON.parse(localStorage.getItem(closedKey)||'[]'));
+    removed.forEach(k=> prev.add(k));
+    localStorage.setItem(closedKey, JSON.stringify([...prev]));
+  }catch(e){}
+
+  // Paso 2: de las SOT en común, se actualiza/compara toda su información campo a campo
+  const updated = [];
+  common.forEach(k=>{
+    const curR = curMap.get(k), refR = refMap.get(k);
+    const changes = [];
+    EXPECTED_HEADERS.forEach(h=>{
+      const from=(refR[h]||'').trim(), to=(curR[h]||'').trim();
+      if(from !== to) changes.push({field:h, from, to});
+    });
+    if(changes.length) updated.push({sot:k, changes});
+  });
+  const unchangedCount = common.length - updated.length;
+
+  const rowsHtml = (keys, map)=> keys.length
+    ? keys.slice(0,200).map(k=>{const r=map.get(k);return `<div class="cmp-row"><b>${escapeHtml(k)}</b><span>${escapeHtml(r.cliente||'')}</span><span>${escapeHtml(r.estproyecto||'')}</span></div>`;}).join('')
+    : '<div class="cmp-empty">— ninguno —</div>';
+
+  const updatedHtml = updated.length
+    ? updated.slice(0,200).map(u=>`
+        <div class="cmp-upd-item">
+          <div class="cmp-upd-sot">SOT ${escapeHtml(u.sot)} <span class="cmp-upd-count">${u.changes.length} campo(s) actualizado(s)</span></div>
+          <div class="cmp-upd-fields">${u.changes.slice(0,12).map(c=>
+            `<span class="cmp-upd-field"><b>${escapeHtml(c.field)}:</b> ${escapeHtml(c.from||'—')} → ${escapeHtml(c.to||'—')}</span>`
+          ).join('')}${u.changes.length>12 ? `<span class="cmp-upd-field">+${u.changes.length-12} más…</span>` : ''}</div>
+        </div>`).join('')
+    : '<div class="cmp-empty">— ningún SOT en común tuvo cambios de información —</div>';
+
+  cmp.innerHTML = `
+    <p class="hint" style="font-size:12px;color:var(--ink-soft);margin:0 0 12px;">
+      🔍 Comparando el backlog cargado actualmente contra la referencia guardada el
+      <b>${escapeHtml(ref.dateFull)} ${escapeHtml(ref.timeFull)}</b> (por <b>${escapeHtml(ref.user||'—')}</b>), usando el campo <b>SOT</b>.
+    </p>
+    <div class="cmp-kpis">
+      <div class="cmp-kpi"><div class="cmpl">SOT nuevos</div><div class="cmpv" style="color:var(--ok)">${added.length}</div></div>
+      <div class="cmp-kpi"><div class="cmpl">SOT Cerradas</div><div class="cmpv" style="color:var(--critico)">${removed.length}</div></div>
+      <div class="cmp-kpi"><div class="cmpl">SOT en común</div><div class="cmpv">${common.length}</div></div>
+    </div>
+    <div class="cmp-sect">
+      <h4>SOT nuevos (${added.length})</h4>
+      <div class="cmp-list">${rowsHtml(added, curMap)}</div>
+      <h4>SOT Cerradas (${removed.length})</h4>
+      <div class="cmp-list">${rowsHtml(removed, refMap)}</div>
+      <h4>SOT en común — información actualizada (${updated.length} de ${common.length})</h4>
+      <div class="cmp-upd-list">${updatedHtml}</div>
+    </div>`;
+}
+document.getElementById('btnComparacion').addEventListener('click', ()=>{
+  closeBacklogModal();
+  window.setActivePage?.('registro');window.showRegistro?.();
+  runComparacion();
+  document.getElementById('regCmp')?.scrollIntoView({behavior:'smooth',block:'nearest'});
+});
+window.runComparacion = runComparacion;
+
+document.getElementById('btnNuevoBacklogPage')?.addEventListener('click', ()=> window.openBacklogModal?.());
+document.getElementById('btnComparacionPage')?.addEventListener('click', ()=>{
+  runComparacion();
+  document.getElementById('regCmp')?.scrollIntoView({behavior:'smooth',block:'nearest'});
+});
+
+renderBacklogHistory();
+
+/* ============================================================
+   INICIALIZACIÓN — recuperar última data maestra confirmada
+   ============================================================ */
+(function init(){
+  try{
+    const saved = JSON.parse(localStorage.getItem(LS_MASTER) || 'null');
+    if(saved && saved.rows && saved.rows.length){
+      masterData = saved;
+      bodyRowsEl.innerHTML = '';
+      saved.rows.forEach((rec, i)=>{
+        const tr = buildRow(i);
+        EXPECTED_HEADERS.forEach((h,c)=>{ tr.children[c+1].textContent = rec[h] || ''; });
+        bodyRowsEl.appendChild(tr);
+      });
+      lockGrid();
+      updateIndicator();
+      document.getElementById('cardRows').textContent = saved.rows.length;
+      document.getElementById('cardCols').textContent = COL_COUNT;
+      document.getElementById('cardEmpty').textContent = 0;
+      document.getElementById('cardStatus').textContent = '✔ Recuperado';
+      collapseTopPanels({rows:saved.rows.length, cols:COL_COUNT, empty:0}, false);
+      // blValidatedInfo NO se muestra aquí: solo debe aparecer justo al presionar "Validar", no de forma persistente al reabrir.
+    }
+  }catch(e){}
+})();
+
+})();
+</script>
+<script>
+
+(function(){
+'use strict';
+const LS='cck_master_data_v1', LSC='cck_slicer_cols_v1';
+
+/* Columnas disponibles como slicers */
+const ALL_COLS=[
+  {k:'cliente',l:'Cliente'},{k:'tipotrabajo',l:'Tipo de Trabajo'},
+  {k:'tiposervicio',l:'Tipo de Servicio'},{k:'zona',l:'Zona'},
+  {k:'estproyecto',l:'Estado Proyecto'},{k:'estado_sot',l:'Estado SOT'},
+  {k:'admproyecto',l:'Responsable'},{k:'workflow',l:'Workflow'},
+  {k:'segmentocliente',l:'Segmento'},{k:'departamento',l:'Departamento'},
+  {k:'estadoadp',l:'Estado ADP'},{k:'tiptra',l:'Tipo Trámite'},
+];
+
+/* Columnas visibles en la tabla de reportes */
+const TCOLS=[
+  {k:'codsolot',l:'SOT'},{k:'descripcion',l:'Proyecto'},{k:'cliente',l:'Cliente'},
+  {k:'tipotrabajo',l:'Tipo Trabajo'},{k:'tiposervicio',l:'Tipo Servicio'},{k:'zona',l:'Zona'},
+  {k:'estproyecto',l:'Estado Proyecto'},{k:'estado_sot',l:'Estado SOT'},{k:'workflow',l:'Workflow'},
+  {k:'admproyecto',l:'Responsable'},{k:'dias_trans',l:'Días Trans.'},
+  {k:'feccom',l:'Fec. Compromiso'},{k:'observacionadp',l:'Observación ADP'},{k:'fechaobsadp',l:'Fecha Obs.'},
+];
+
+/* ── Orden de columnas de la tabla (editable desde ⚙ Columnas) ── */
+const LS_TCOLS_ORDER='cck_tcols_order_v1';
+function tcolsPosOf(key){const i=TCOLS.findIndex(c=>c.k===key);return i>=0?i+1:null;}
+function saveTcolsOrder(){localStorage.setItem(LS_TCOLS_ORDER,JSON.stringify(TCOLS.map(c=>c.k)));}
+function applyTcolsOrder(){
+  try{
+    const order=JSON.parse(localStorage.getItem(LS_TCOLS_ORDER)||'null');
+    if(!Array.isArray(order)||!order.length)return;
+    const byKey={};TCOLS.forEach(c=>{byKey[c.k]=c;});
+    const reordered=[];
+    order.forEach(k=>{if(byKey[k]){reordered.push(byKey[k]);delete byKey[k];}});
+    Object.values(byKey).forEach(c=>reordered.push(c)); // columnas nuevas no guardadas aún, al final
+    TCOLS.length=0;TCOLS.push(...reordered);
+  }catch(e){}
+}
+
+/* ── Nombres personalizados de slicers Master (editables desde ⚙ Columnas) ── */
+const LS_SLICER_RENAMES='cck_slicer_renames_v1';
+let slicerRenames={};
+function saveSlicerRenames(){localStorage.setItem(LS_SLICER_RENAMES,JSON.stringify(slicerRenames));}
+function applySlicerRenames(){
+  try{slicerRenames=JSON.parse(localStorage.getItem(LS_SLICER_RENAMES)||'{}');}catch(e){slicerRenames={};}
+  Object.keys(slicerRenames).forEach(k=>{
+    const l=slicerRenames[k];
+    const a=ALL_COLS.find(c=>c.k===k); if(a) a.l=l;
+    const t=TCOLS.find(c=>c.k===k); if(t) t.l=l;
+  });
+}
+
+const esc=s=>(s==null?'':s.toString()).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const norm=s=>(s||'').toString().trim();
+const $=id=>document.getElementById(id);
+
+let rows=[],sCols=[],sSel={},rfEstSel=new Set(),rfCard=null;
+let sk=null,sd=1,fRows=[],curPanel=null,selA=null,selF=null,isDrag=false;
+
+/* ── Ancho de columnas (redimensionable, estilo Excel) ── */
+const LS_COL_WIDTHS='cck_col_widths_v1';
+let colWidths={};
+try{colWidths=JSON.parse(localStorage.getItem(LS_COL_WIDTHS)||'{}');}catch(e){colWidths={};}
+function saveColWidths(){localStorage.setItem(LS_COL_WIDTHS,JSON.stringify(colWidths));}
+function defaultColWidth(key){
+  if(key==='__rownum__')return 44;
+  if(key==='dias_trans')return 90;
+  if(key==='codsolot')return 110;
+  return 150;
+}
+function getColWidth(key){return colWidths[key]||defaultColWidth(key);}
+
+/* Colores automáticos para estados de estproyecto */
+const STATE_COLORS=['#1E3A78','#C0392B','#FF8C42','#2BBE83','#7C5CBF','#0B8F80','#8C6914','#2E7DAF'];
+const stateColorMap={};
+function getStateColor(state){
+  if(!stateColorMap[state]){
+    const idx=Object.keys(stateColorMap).length % STATE_COLORS.length;
+    stateColorMap[state]=STATE_COLORS[idx];
+  }
+  return stateColorMap[state];
+}
+
+/* ── Mover contenido original al mainArea ── */
+const ma=$('mainArea'),rv=$('reportView'),dv=$('dashboardView'),rgv=$('registroView'),pv=$('pendientesView');
+['header.topbar'].forEach(sel=>{
+  const el=document.querySelector(sel);if(el)ma.insertBefore(el,rv);
+});
+['cellTooltip','modalOverlay'].forEach(id=>{const el=$(id);if(el)ma.insertBefore(el,rv);});
+
+/* ── Carga de data ── */
+const LS_CLOSED_SOT='cck_closed_sot_v1';
+function getClosedSotSet(){
+  try{return new Set(JSON.parse(localStorage.getItem(LS_CLOSED_SOT)||'[]'));}catch(e){return new Set();}
+}
+function loadData(){
+  try{const s=JSON.parse(localStorage.getItem(LS)||'null');
+    if(s&&s.rows&&s.rows.length){
+      const closed=getClosedSotSet();
+      rows = closed.size ? s.rows.filter(r=>!closed.has((r.codsolot||'').trim())) : s.rows;
+      return true;
+    }}catch(e){}
+  rows=[];return false;
+}
+
+function refreshStatus(){
+  try{const s=JSON.parse(localStorage.getItem(LS)||'null');
+    const rEl=$('sbRows'),cEl=$('sbCols'),p=$('sbPill');
+    if(!rEl&&!cEl&&!p)return; // panel flotante ya no existe
+    if(s&&s.rows&&s.rows.length){
+      if(rEl)rEl.textContent=s.rows.length;
+      if(cEl)cEl.textContent=(s.headers||[]).length;
+      if(p){p.className='sb-pill ok';p.textContent='✔ Confirmada · '+(s.loadedAt||'');}
+    }else{
+      if(rEl)rEl.textContent='0';if(cEl)cEl.textContent='0';
+      if(p){p.className='sb-pill empty';p.textContent='⬜ Sin data confirmada';}
+    }
+  }catch(e){}
+}
+
+/* ── Cards dinámicos por estproyecto ── */
+function buildStateCards(data){
+  const container=$('rptCards');if(!container)return;
+  /* contar por estproyecto */
+  const counts={};
+  data.forEach(r=>{const v=norm(r.estproyecto)||'(sin estado)';counts[v]=(counts[v]||0)+1;});
+  const states=Object.keys(counts).sort();
+  const total=data.length;
+
+  let html=`<div class="rpt-card rc-total" data-cf="all"><div class="rcl">Total</div><div class="rcv">${total}</div></div>`;
+  states.forEach(st=>{
+    const color=getStateColor(st);
+    const active=rfCard===st?'cf-active':'';
+    html+=`<div class="rpt-card ${active}" data-cf="${esc(st)}" style="--sc:${color}">
+      <div class="rcl" title="${esc(st)}">${esc(st)}</div>
+      <div class="rcv" style="color:${color}">${counts[st]}</div>
+    </div>`;
+  });
+  container.innerHTML=html;
+  /* barra de color dinámica */
+  container.querySelectorAll('.rpt-card:not(.rc-total)').forEach(c=>{
+    const sc=c.style.getPropertyValue('--sc')||'#9DACC8';
+    c.style.cssText+=`;--after-bg:${sc};`;
+    /* forzar after color */
+    const pseudo=document.createElement('style');
+    pseudo.textContent=''; document.head.appendChild(pseudo);
+    c.addEventListener('click',()=>{
+      rfCard=(rfCard===c.dataset.cf||c.dataset.cf==='all')?null:c.dataset.cf;
+      container.querySelectorAll('.rpt-card').forEach(x=>x.classList.toggle('cf-active',x.dataset.cf===rfCard));
+      renderTable();
+    },{once:false});
+  });
+  /* Total card */
+  const totalCard=container.querySelector('.rpt-card.rc-total');
+  if(totalCard) totalCard.addEventListener('click',()=>{
+    rfCard=null;container.querySelectorAll('.rpt-card').forEach(x=>x.classList.remove('cf-active'));
+    totalCard.classList.add('cf-active');renderTable();},{once:false});
+}
+
+/* ── Chips dinámicos de estados de estproyecto ── */
+function buildEstChips(allRows){
+  const chipsEl=$('rfEstChips');if(!chipsEl)return;
+  const states=Array.from(new Set(allRows.map(r=>norm(r.estproyecto)).filter(Boolean))).sort();
+  chipsEl.innerHTML=states.map(st=>
+    `<button class="chip-sb ${rfEstSel.has(st)?'on':''}" data-est="${esc(st)}" title="${esc(st)}">${esc(st)}</button>`
+  ).join('');
+  chipsEl.querySelectorAll('.chip-sb[data-est]').forEach(b=>{
+    b.addEventListener('click',()=>{
+      const k=b.dataset.est;
+      if(rfEstSel.has(k)){rfEstSel.delete(k);b.classList.remove('on');}
+      else{rfEstSel.add(k);b.classList.add('on');}
+      renderTable();
+    });
+  });
+}
+
+/* ── Navegación entre páginas (sin ventana flotante) ── */
+function setActivePage(w){
+  [$('btnStripTabla'),$('btnStripReporte'),$('btnStripDashboard'),$('btnStripPendientes')].forEach(b=>b.classList.remove('active'));
+  curPanel=w;
+  if(w==='registro')$('btnStripTabla').classList.add('active');
+  else if(w==='reporte')$('btnStripReporte').classList.add('active');
+  else if(w==='dashboard')$('btnStripDashboard').classList.add('active');
+  else if(w==='pendientes')$('btnStripPendientes').classList.add('active');
+}
+window.setActivePage = setActivePage;
+
+/* Cabecera dinámica: el título cambia según la página activa */
+function setHeaderPage(title,subtitle,showMeta){
+  const h1=document.querySelector('header.topbar h1');
+  const sub=document.querySelector('header.topbar .sub');
+  const meta=document.querySelector('header.topbar .meta');
+  if(h1)h1.textContent=title;
+  if(sub)sub.textContent=subtitle;
+  if(meta)meta.style.display=showMeta?'':'none';
+}
+
+/* "Registro de Backlogs" — página independiente con el histórico diario guardado */
+$('btnStripTabla').addEventListener('click',()=>{setActivePage('registro');showRegistro();});
+$('btnStripReporte').addEventListener('click',()=>{setActivePage('reporte');showReporte();});
+$('btnStripDashboard').addEventListener('click',()=>{setActivePage('dashboard');showDashboard();});
+$('btnStripPendientes')?.addEventListener('click',()=>{setActivePage('pendientes');showPendientes();});
+
+function showRegistro(){
+  rv.classList.remove('active');dv.classList.remove('active');pv?.classList.remove('active');
+  rgv.classList.add('active');
+  setHeaderPage('Registro de Backlogs','Fernando Chura· Telecomunicaciones · Backlog',false);
+  const cmp=$('regCmp');if(cmp)cmp.style.display='none';
+  window.renderBacklogHistory?.();
+}
+window.showRegistro = showRegistro;
+
+function showReporte(){
+  dv.classList.remove('active');rgv.classList.remove('active');pv?.classList.remove('active');
+  rv.classList.add('active');
+  setHeaderPage('Control de Backlog','Fernando Chura · Telecomunicaciones · Backlog',false);
+  loadData();buildSels();buildEstChips(rows);buildStateCards(rows);renderSlicers();renderTable();
+  renderNewSotBadge();
+}
+function showDashboard(){
+  rv.classList.remove('active');rgv.classList.remove('active');pv?.classList.remove('active');
+  dv.classList.add('active');
+  setHeaderPage('Dashboard','Fernando Chura · Telecomunicaciones · Backlog',false);
+  loadData();renderDashboard();
+}
+function showPendientes(){
+  rv.classList.remove('active');rgv.classList.remove('active');dv.classList.remove('active');
+  pv?.classList.add('active');
+  setHeaderPage('Control de Pendientes','Fernando Chura · Telecomunicaciones · Backlog',false);
+  loadData();
+  window.renderKanban?.();
+}
+window.showPendientes = showPendientes;
+
+/* ── Render de la página Dashboard ── */
+function renderDashboard(){
+  const kpis=$('dashKpis'),em=$('dashEmpty');
+  if(!rows.length){
+    if(kpis)kpis.innerHTML='';
+    ['dashByEstado','dashByZona','dashByTipo','dashByServicio'].forEach(id=>{const el=$(id);if(el)el.innerHTML='';});
+    if(em)em.style.display='block';
+    return;
+  }
+  if(em)em.style.display='none';
+
+  const total=rows.length;
+  const aTiempo=rows.filter(r=>norm(r.estproyecto)==='A Tiempo').length;
+  const vencida=rows.filter(r=>norm(r.estproyecto)==='Vencida').length;
+  if(kpis)kpis.innerHTML=`
+    <div class="dash-kpi"><div class="dkl">Total proyectos</div><div class="dkv">${total}</div></div>
+    <div class="dash-kpi"><div class="dkl">A tiempo</div><div class="dkv" style="color:var(--ok)">${aTiempo}</div></div>
+    <div class="dash-kpi"><div class="dkl">Vencida</div><div class="dkv" style="color:var(--critico)">${vencida}</div></div>`;
+
+  function counts(key){
+    const c={};
+    rows.forEach(r=>{const v=norm(r[key])||'(sin dato)';c[v]=(c[v]||0)+1;});
+    return Object.entries(c).sort((a,b)=>b[1]-a[1]);
+  }
+  function paintBars(id,key,colorFn){
+    const el=$(id);if(!el)return;
+    const data=counts(key);
+    const max=data.length?data[0][1]:1;
+    el.innerHTML=data.map(([label,n])=>{
+      const pct=Math.max(3,Math.round(n/max*100));
+      const color=colorFn?colorFn(label):'var(--signal-teal-dim)';
+      return `<div class="dash-bar-row">
+        <div class="dash-bar-lbl" title="${esc(label)}">${esc(label)}</div>
+        <div class="dash-bar-track"><div class="dash-bar-fill" style="width:${pct}%;background:${color};"></div></div>
+        <div class="dash-bar-val">${n}</div>
+      </div>`;
+    }).join('');
+  }
+  paintBars('dashByEstado','estproyecto',st=>getStateColor(st));
+  paintBars('dashByZona','zona');
+  paintBars('dashByTipo','tipotrabajo');
+  paintBars('dashByServicio','tiposervicio');
+}
+
+/* ── Filtrado slicers en cascada ── */
+function colVal(r,c){
+  if(c && c.indexOf('personal_')===0){
+    const sot=(r.codsolot||'').trim();
+    return (window.__pValsCache||{})[sot+'::'+c]||'';
+  }
+  return r[c];
+}
+function slicerFilter(exc){
+  window.__pValsCache=getPersonalValues();
+  return rows.filter(r=>{
+    for(const c of sCols){if(c===exc)continue;const s=sSel[c];if(!s||s.size===0)continue;if(!s.has(norm(colVal(r,c))))return false;}
+    return true;});}
+
+/* ── Render slicers ── */
+function renderSlicers(){
+  const bar=$('rvSlicerBar');if(!bar)return;
+  const saved={};
+  bar.querySelectorAll('.slicer-box[data-sc]').forEach(b=>{
+    saved[b.dataset.sc]={w:b.style.width, h:b.style.height};});
+  bar.innerHTML='';
+  if(!rows.length){bar.innerHTML='<div style="font-size:12px;color:var(--ink-soft);padding:8px;">Carga la data maestra para ver los slicers.</div>';return;}
+  sCols.forEach(col=>{
+    const def=ALL_COLS.find(c=>c.k===col)||(personalCols.find(c=>c.k===col))||{k:col,l:col};
+    window.__pValsCache=getPersonalValues();
+    const all=Array.from(new Set(rows.map(r=>norm(colVal(r,col))).filter(v=>v!==''))).sort((a,b)=>a.localeCompare(b,'es',{sensitivity:'base'}));
+    const avail=new Set(slicerFilter(col).map(r=>norm(colVal(r,col))));
+    const sel=sSel[col]||new Set();const sn=sel.size;const an=all.filter(v=>avail.has(v)).length;
+    const box=document.createElement('div');box.className='slicer-box';box.dataset.sc=col;
+    if(saved[col]&&saved[col].w)  box.style.width=saved[col].w;
+    if(saved[col]&&saved[col].h)  box.style.height=saved[col].h;
+    box.innerHTML=`<div class="slicer-head">
+        <span class="slicer-title" title="${esc(def.l)}">${esc(def.l)}</span>
+        ${sn>0?`<span class="slicer-cnt sel">${sn} sel.</span>`:`<span class="slicer-cnt">${an}/${all.length}</span>`}
+        <button class="slicer-clr" data-sc="${esc(col)}">✕</button>
+      </div><div class="slicer-items" id="si_${col}"></div>
+      <div class="res-s" data-sc="${esc(col)}"></div><div class="res-e" data-sc="${esc(col)}"></div>`;
+    bar.appendChild(box);
+    const items=box.querySelector('.slicer-items');
+    [...all.filter(v=>sel.has(v)),...all.filter(v=>!sel.has(v)&&avail.has(v)),...all.filter(v=>!sel.has(v)&&!avail.has(v))].forEach(val=>{
+      const btn=document.createElement('button');
+      btn.className='slicer-item'+(sel.has(val)?' selected':(!avail.has(val)?' unavail':''));
+      btn.textContent=val;btn.title=val;btn.dataset.sc=col;btn.dataset.sv=val;items.appendChild(btn);});});
+  attachResize();updSmry();
+}
+
+function attachResize(){
+  /* Handle DERECHO — cambia ancho del slicer */
+  document.querySelectorAll('.res-e').forEach(h=>{h.addEventListener('mousedown',e=>{
+    e.preventDefault();
+    const b=h.closest('.slicer-box');const sx=e.clientX,sw=b.offsetWidth;
+    const mv=ev=>{b.style.width=Math.max(130,sw+(ev.clientX-sx))+'px';};
+    const up=()=>{document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);};
+    document.addEventListener('mousemove',mv);document.addEventListener('mouseup',up);});});
+
+  /* Handle INFERIOR — cambia la altura MÁXIMA del box (controla cuántos ítems se ven) */
+  document.querySelectorAll('.res-s').forEach(h=>{h.addEventListener('mousedown',e=>{
+    e.preventDefault();
+    const b=h.closest('.slicer-box');
+    const sy=e.clientY,sh=b.offsetHeight;
+    const mv=ev=>{
+      const newH=Math.max(120, sh+(ev.clientY-sy));
+      b.style.height=newH+'px';
+    };
+    const up=()=>{document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);};
+    document.addEventListener('mousemove',mv);document.addEventListener('mouseup',up);});});}
+
+document.addEventListener('click',e=>{
+  const item=e.target.closest('.slicer-item');
+  if(item){const c=item.dataset.sc,v=item.dataset.sv;if(!sSel[c])sSel[c]=new Set();
+    if(sSel[c].has(v))sSel[c].delete(v);else sSel[c].add(v);renderSlicers();renderTable();return;}
+  const clr=e.target.closest('.slicer-clr');
+  if(clr){if(sSel[clr.dataset.sc])sSel[clr.dataset.sc].clear();renderSlicers();renderTable();return;}});
+$('btnClrSlicers').addEventListener('click',()=>{
+  if(!confirm('¿Reiniciar avance?\n\n• Se ELIMINARÁN todas las columnas Personal, sus valores y relaciones.\n• El backlog se recargará según el último registro de "Registro de Backlogs".\n\nEsta acción no se puede deshacer.'))return;
+
+  // 1) Actualiza todo el backlog desde el último registro guardado
+  const res=window.reloadMasterFromLatestRecord?.();
+  if(!res){alert('No hay ningún registro de backlog guardado con data. Guarda uno en "Registro de Backlogs" primero. No se realizó ningún cambio.');return;}
+
+  // 2) Elimina toda la configuración de slicers/columnas Personal
+  const pKeys=personalCols.map(c=>c.k);
+  personalCols=[];savePersonalCols();
+  [LS_PERSONAL_VALUES,LS_PERSONAL_RELATIONS,LS_PERSONAL_VISIBLE].forEach(k=>localStorage.removeItem(k));
+  sCols=sCols.filter(k=>k.indexOf('personal_')!==0);
+  Object.keys(sSel).forEach(k=>{if(k.indexOf('personal_')===0)delete sSel[k];});
+  localStorage.setItem(LSC,JSON.stringify(sCols));
+
+  // 3) Limpia filtros y repinta todo
+  sCols.forEach(k=>{if(sSel[k])sSel[k].clear();});
+  newSotFilterOnly=false;newSotHighlightSet=null;rfCard=null;rfEstSel.clear();
+  loadData();buildSels();buildEstChips(rows);buildStateCards(rows);
+  renderSlicers();renderTable();renderNewSotBadge();
+  window.showToast?.('success','↺','Avance reiniciado',rows.length+' proyecto(s) cargados del registro del '+esc(res.rec.dateFull||'')+' '+esc(res.rec.hh||'')+':'+esc(res.rec.mm||'')+'. '+pKeys.length+' columna(s) Personal eliminada(s).');
+});
+function updSmry(){const el=$('slicerSmry');if(!el)return;
+  const a=sCols.filter(k=>sSel[k]&&sSel[k].size>0);
+  el.textContent=a.length?a.map(k=>{const d=ALL_COLS.find(c=>c.k===k)||{l:k};return d.l+': '+[...sSel[k]].join(', ');}).join(' · '):'';}
+
+/* ── Render tabla ── */
+function getRf(){return{
+  search:($('rfSearch')?.value||'').trim().toLowerCase(),
+  cliente:$('rfCliente')?.value||'',tipo:$('rfTipo')?.value||'',
+  zona:$('rfZona')?.value||'',resp:$('rfResp')?.value||'',
+  dMin:$('rfDMin')?.value||'',dMax:$('rfDMax')?.value||''};}
+
+function parseDias(r){return parseFloat((r.dias_trans||'').toString().replace(',','.'));}
+
+function matchRf(r,f){
+  if(f.search&&!Object.values(r).join(' ').toLowerCase().includes(f.search))return false;
+  if(f.cliente&&r.cliente!==f.cliente)return false;
+  if(f.tipo&&r.tipotrabajo!==f.tipo)return false;
+  if(f.zona&&r.zona!==f.zona)return false;
+  if(f.resp&&r.admproyecto!==f.resp)return false;
+  const d=parseDias(r);
+  if(f.dMin!==''&&(isNaN(d)||d<+f.dMin))return false;
+  if(f.dMax!==''&&(isNaN(d)||d>+f.dMax))return false;
+  /* filtro por estado de proyecto (chips) */
+  if(rfEstSel.size>0&&!rfEstSel.has(norm(r.estproyecto)))return false;
+  /* filtro por card seleccionado */
+  if(rfCard&&rfCard!=='all'&&norm(r.estproyecto)!==rfCard)return false;
+  return true;}
+
+function renderTable(){
+  let base=slicerFilter(null);
+  const f=getRf();
+  let data=base.filter(r=>matchRf(r,f));
+  if(newSotFilterOnly && newSotHighlightSet){
+    data=data.filter(r=>newSotHighlightSet.has((r.codsolot||'').trim()));
+  }
+  if(sk)data=data.slice().sort((a,b)=>{
+    let va=a[sk]||'',vb=b[sk]||'';
+    if(sk==='dias_trans'){va=parseDias(a)||Infinity;vb=parseDias(b)||Infinity;return(va-vb)*sd;}
+    return va.toString().localeCompare(vb.toString(),'es',{numeric:true})*sd;});
+  fRows=data;
+
+  const th=$('rvHead'),tb=$('rvBody'),em=$('rvEmpty'),ind=$('rvInd'),cg=$('rvColgroup');
+  if(!th||!tb)return;
+  const showP=personalVisible()&&personalCols.length>0;
+  const colKeys=['__rownum__',...(showP?personalCols.map(c=>c.k):[]),...TCOLS.map(c=>c.k)];
+  if(cg)cg.innerHTML=colKeys.map(k=>`<col data-colkey="${esc(k)}" style="width:${getColWidth(k)}px">`).join('');
+  const pHead=showP?personalCols.map(c=>`<th class="thp" title="Columna Personal (editable)">📝 ${esc(c.l)}<span class="col-resize-handle" data-colkey="${esc(c.k)}"></span></th>`).join(''):'';
+  th.innerHTML='<th class="thn" title="Doble clic: mostrar/ocultar columnas Personal">#<span class="col-resize-handle" data-colkey="__rownum__"></span></th>'+pHead+TCOLS.map(c=>`<th data-rk="${c.k}" class="${sk===c.k?(sd===1?'sa':'sd'):''}">${esc(c.l)}<span class="col-resize-handle" data-colkey="${esc(c.k)}"></span></th>`).join('');
+
+  if(!data.length){
+    tb.innerHTML='';if(em)em.style.display='block';
+    $('rvEmptyMsg').textContent=rows.length?'Ningún proyecto coincide.':'Valida la data maestra primero.';
+  }else{
+    if(em)em.style.display='none';
+    const pVals=showP?getPersonalValues():null;
+    tb.innerHTML=data.map((r,i)=>{
+      const dias=parseDias(r);
+      /* color de fila basado en estproyecto */
+      const est=norm(r.estproyecto);
+      const estColor=est?getStateColor(est):'';
+      const borderStyle=estColor?`style="border-left:3px solid ${estColor}"`:'';
+      const sot=(r.codsolot||'').trim();
+      const isNewSel=newSotHighlightSet && newSotHighlightSet.has(sot);
+      const pCells=showP?personalCols.map(c=>{
+        const v=pVals[sot+'::'+c.k]||'';
+        return `<td class="tdp" contenteditable="false" data-sot="${esc(sot)}" data-pk="${esc(c.k)}">${esc(v)}</td>`;
+      }).join(''):'';
+      return`<tr data-ri="${i}" class="${isNewSel?'row-newsot':''}"><td class="tdn" ${borderStyle}>${i+1}</td>`+pCells+
+        TCOLS.map((c,ci)=>{
+          let cls='';
+          if(c.k==='dias_trans')cls=!isNaN(dias)?(dias<0?'rvneg':'rvpos'):'';
+          return`<td class="${cls}" data-ri="${i}" data-ci="${ci}">${esc(r[c.k])}</td>`;
+        }).join('')+'</tr>';
+    }).join('');}
+
+  const any=sCols.some(k=>sSel[k]&&sSel[k].size>0)||rfEstSel.size>0||rfCard;
+  if(ind)ind.innerHTML=`<span class="rpill">${data.length}</span> de <span class="rpill">${rows.length}</span> proyectos`+(any?' · <span style="color:var(--critico);font-weight:700;">Filtros activos</span>':'');
+
+  /* actualizar cards con datos filtrados por slicers (sin filtros de panel) */
+  buildStateCards(base);clearSel();
+}
+
+/* ============================================================
+   TOOLTIP FLOTANTE PARA TABLA DE RESULTADOS (#rvBody)
+   Muestra el contenido completo de celdas truncadas al hacer hover
+   O AL HACER CLIC (para garantizar que siempre se pueda ver, sin
+   depender de que el hover se mantenga el tiempo exacto).
+   ============================================================ */
+(function(){
+  const ft=$('cellFullTooltip');
+  const rvBody=$('rvBody');
+  if(!ft||!rvBody)return;
+  let ftTimer=null;
+  let ftText=''; // texto actualmente mostrado en la ventana flotante
+
+  function positionFullTooltip(e){
+    const margin=14;
+    const tw=ft.offsetWidth||300, th=ft.offsetHeight||60;
+    let x=e.clientX+margin, y=e.clientY+margin;
+    if(x+tw>window.innerWidth-8) x=e.clientX-tw-margin;
+    if(y+th>window.innerHeight-8) y=e.clientY-th-margin;
+    ft.style.left=x+'px'; ft.style.top=y+'px';
+  }
+
+  function isTruncated(td){
+    return td.scrollWidth > td.offsetWidth+1 || td.scrollHeight > td.offsetHeight+1;
+  }
+
+  function showTooltipForCell(td,e){
+    if(!td||td.classList.contains('tdn'))return false;
+    const text=(td.dataset.pk!=null) ? td.textContent.trim() : (td.textContent||'').trim();
+    if(!text)return false;
+    if(!isTruncated(td))return false;
+    const ci=+td.dataset.ci;
+    const colLabel = td.dataset.pk!=null
+      ? (personalCols.find(c=>c.k===td.dataset.pk)||{}).l || ''
+      : (TCOLS[ci]&&TCOLS[ci].l)||'';
+    ft.innerHTML=`<div class="tt-text" title="Puedes seleccionar este texto con el mouse"></div><div class="tt-footer"><span class="tt-label"></span><button class="tt-copy" type="button">Copiar</button></div>`;
+    ft.querySelector('.tt-text').textContent=text;
+    ft.querySelector('.tt-label').textContent=colLabel;
+    ft.classList.add('interactive'); // pointer-events:auto + permite seleccionar el texto
+    ft.style.display='block';
+    ftText=text;
+    positionFullTooltip(e); // se posiciona UNA sola vez, no persigue el cursor
+    ft.querySelector('.tt-copy').addEventListener('click',ev=>{
+      ev.stopPropagation();
+      navigator.clipboard?.writeText(text);
+      const b=ev.currentTarget;b.textContent='✓ Copiado';b.classList.add('copied');
+      setTimeout(()=>{b.textContent='Copiar';b.classList.remove('copied');},1200);
+    });
+    return true;
+  }
+
+  rvBody.addEventListener('mouseover',function(e){
+    const td=e.target.closest('td');
+    if(!td||td.classList.contains('tdn'))return;
+    clearTimeout(ftTimer);
+    ftTimer=setTimeout(()=>{ showTooltipForCell(td,e); },150);
+  });
+
+  /* Respaldo: un clic directo en una celda truncada también muestra el
+     contenido completo de inmediato, sin depender del hover. */
+  rvBody.addEventListener('click',function(e){
+    const td=e.target.closest('td');
+    if(!td||td.classList.contains('tdn')||td.isContentEditable)return;
+    if(td.classList.contains('tdp')&&e.detail>1)return; // es parte de un doble clic: lo maneja el editor
+    clearTimeout(ftTimer);
+    showTooltipForCell(td,e);
+  });
+
+  rvBody.addEventListener('mouseout',function(e){
+    const td=e.target.closest('td');
+    if(!td)return;
+    clearTimeout(ftTimer);
+    // margen amplio para permitir mover el mouse hacia la ventana y seleccionar texto
+    setTimeout(()=>{ if(!ft.matches(':hover')) ft.style.display='none'; },300);
+  });
+
+  ft.addEventListener('mouseleave',()=>{ ft.style.display='none'; });
+
+  /* Ctrl+C mientras la ventana flotante está visible: copia su contenido completo */
+  document.addEventListener('keydown',e=>{
+    if((e.ctrlKey||e.metaKey)&&(e.key==='c'||e.key==='C')&&ft.style.display==='block'&&ftText){
+      e.preventDefault();e.stopPropagation();
+      navigator.clipboard?.writeText(ftText);
+      const b=ft.querySelector('.tt-copy');
+      if(b){b.textContent='✓ Copiado';b.classList.add('copied');
+        setTimeout(()=>{b.textContent='Copiar';b.classList.remove('copied');},1200);}
+    }
+  },true);
+})();
+
+/* Eventos clic en cabecera tabla */
+document.addEventListener('click',e=>{
+  if(e.target.closest('.col-resize-handle'))return; // evita ordenar al soltar el arrastre de resize
+  const th=e.target.closest('#rvHead th[data-rk]');if(!th)return;
+  const k=th.dataset.rk;if(sk===k)sd*=-1;else{sk=k;sd=1;}renderTable();});
+
+/* ── Selects filtros panel ── */
+function buildSels(){
+  function fill(id,key,ph){const sel=$(id);if(!sel)return;const cur=sel.value;
+    const vals=Array.from(new Set(rows.map(r=>norm(r[key])).filter(Boolean))).sort();
+    sel.innerHTML=`<option value="">${ph}</option>`+vals.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');
+    if(vals.includes(cur))sel.value=cur;}
+  fill('rfCliente','cliente','Cliente: todos');
+  fill('rfTipo','tipotrabajo','Tipo trabajo: todos');
+  fill('rfZona','zona','Zona: todas');
+  fill('rfResp','admproyecto','Responsable: todos');
+}
+
+['rfSearch','rfDMin','rfDMax'].forEach(id=>{const el=$(id);if(el)el.addEventListener('input',renderTable);});
+['rfCliente','rfTipo','rfZona','rfResp'].forEach(id=>{const el=$(id);if(el)el.addEventListener('change',renderTable);});
+
+$('rfClear')?.addEventListener('click',()=>{
+  ['rfSearch','rfDMin','rfDMax'].forEach(id=>{const el=$(id);if(el)el.value='';});
+  ['rfCliente','rfTipo','rfZona','rfResp'].forEach(id=>{const el=$(id);if(el)el.value='';});
+  rfEstSel.clear();buildEstChips(rows);rfCard=null;
+  $('rptCards')?.querySelectorAll('.rpt-card').forEach(c=>c.classList.remove('cf-active'));
+  renderTable();});
+
+/* ── Exportar ── */
+$('btnExpRv')?.addEventListener('click',()=>{
+  if(!fRows.length){alert('No hay datos.');return;}
+  const d=new Date(),p=n=>n<10?'0'+n:''+n;
+  const blob=new Blob([JSON.stringify({total:fRows.length,rows:fRows},null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);const a=document.createElement('a');
+  a.href=url;a.download='reporte_'+d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'.json';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);});
+
+/* ── Modal config slicers ── */
+const scModal=$('scModal');
+function renderScColList(){
+  const sortedAll = ALL_COLS.slice().sort((a,b)=>{
+    const pa=tcolsPosOf(a.k), pb=tcolsPosOf(b.k);
+    if(pa===null&&pb===null)return 0;
+    if(pa===null)return 1;   // sin posición en la tabla → al final
+    if(pb===null)return -1;
+    return pa-pb;
+  });
+  const masterItems = sortedAll.map(c=>{
+    const pos = tcolsPosOf(c.k);
+    const orderHtml = pos
+      ? `<input type="number" class="sc-order" data-order-master="${esc(c.k)}" value="${pos}" min="1" max="${TCOLS.length}" title="Posición en la tabla">`
+      : `<span class="sc-order-none" title="Esta columna no se muestra en la tabla, solo filtra">—</span>`;
+    return `
+    <div class="scitem ${sCols.includes(c.k)?'sel':''}" data-ck="${c.k}">
+      <input type="checkbox" id="sck_${c.k}" ${sCols.includes(c.k)?'checked':''}>
+      <label for="sck_${c.k}">
+        <span class="sc-name-edit" contenteditable="true" spellcheck="false" data-rename-master="${esc(c.k)}">${esc(c.l)}</span>
+        <br><small style="color:var(--ink-soft);font-weight:400;">${c.k}</small>
+      </label>
+      <div class="sc-order-wrap">${orderHtml}<button type="button" class="sc-del-btn" data-del-master="${esc(c.k)}" title="Eliminar este slicer">🗑</button></div>
+    </div>`;}).join('');
+
+  const personalItems = personalCols.length ? personalCols.map((c,i)=>`
+    <div class="scitem scitem-personal ${sCols.includes(c.k)?'sel':''}" data-pk="${esc(c.k)}">
+      <input type="checkbox" id="sck_${esc(c.k)}" ${sCols.includes(c.k)?'checked':''}>
+      <span class="sc-personal-ico">📝</span>
+      <label for="sck_${esc(c.k)}">
+        <span class="sc-name-edit" contenteditable="true" spellcheck="false" data-rename-personal="${esc(c.k)}">${esc(c.l)}</span>
+        <br><small style="color:var(--ink-soft);font-weight:400;">${esc(c.k)}</small>
+      </label>
+      <div class="sc-order-wrap">
+        <input type="number" class="sc-order" data-order-personal="${esc(c.k)}" value="${i+1}" min="1" max="${personalCols.length}" title="Orden entre columnas Personal">
+        <button type="button" class="sc-del-btn" data-del-personal="${esc(c.k)}" title="Eliminar esta columna Personal">🗑</button>
+      </div>
+    </div>`).join('') : `<div class="sc-empty-hint">Aún no hay columnas Personal creadas.</div>`;
+
+  $('scColList').innerHTML = `
+    <div class="sc-section-title">🗂️ Slicers Master</div>
+    <div class="sccols">${masterItems}</div>
+    <div class="sc-section-title sc-section-personal">📝 Slicers Personal</div>
+    <div class="sccols">${personalItems}</div>`;
+
+  // Renombrar slicer Master (se refleja también en la cabecera de la tabla si es columna visible)
+  $('scColList').querySelectorAll('[data-rename-master]').forEach(el=>{
+    el.addEventListener('mousedown',e=>{e.stopPropagation();});
+    el.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();});
+    el.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); el.blur(); } });
+    el.addEventListener('blur',()=>{
+      const key=el.dataset.renameMaster;
+      const val=el.textContent.trim();
+      const col=ALL_COLS.find(c=>c.k===key);
+      if(!val){ if(col) el.textContent=col.l; return; }
+      if(col) col.l=val;
+      const tcol=TCOLS.find(c=>c.k===key);
+      if(tcol) tcol.l=val;
+      slicerRenames[key]=val;
+      saveSlicerRenames();
+      renderTable();
+      renderSlicers();
+    });
+  });
+
+  // Renombrar slicer Personal
+  $('scColList').querySelectorAll('[data-rename-personal]').forEach(el=>{
+    el.addEventListener('mousedown',e=>{e.stopPropagation();});
+    el.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();});
+    el.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); el.blur(); } });
+    el.addEventListener('blur',()=>{
+      const key=el.dataset.renamePersonal;
+      const val=el.textContent.trim();
+      const col=personalCols.find(c=>c.k===key);
+      if(!val){ if(col) el.textContent=col.l; return; }
+      if(col) col.l=val;
+      savePersonalCols();
+      renderTable();
+      renderSlicers();
+    });
+  });
+
+  $('scColList').querySelectorAll('.scitem').forEach(it=>{
+    it.addEventListener('click',e=>{
+      if(e.target.tagName==='INPUT')return;
+      if(e.target.closest('.sc-name-edit'))return;
+      if(e.target.closest('.sc-del-btn'))return;
+      const cb=it.querySelector('input[type="checkbox"]');
+      if(!cb)return; // items Personal no tienen checkbox (no filtran, solo se muestran en la tabla)
+      cb.checked=!cb.checked;it.classList.toggle('sel',cb.checked);});
+    const cb=it.querySelector('input[type="checkbox"]');
+    if(cb)cb.addEventListener('change',()=>it.classList.toggle('sel',cb.checked));
+  });
+
+  /* Cambiar el orden de una columna Master reordena TCOLS en vivo */
+  $('scColList').querySelectorAll('input[data-order-master]').forEach(inp=>{
+    inp.addEventListener('click',e=>e.stopPropagation());
+    inp.addEventListener('change',()=>{
+      const key=inp.dataset.orderMaster;
+      let newPos=parseInt(inp.value,10);
+      if(isNaN(newPos))newPos=1;
+      newPos=Math.max(1,Math.min(newPos,TCOLS.length));
+      const idx=TCOLS.findIndex(c=>c.k===key);
+      if(idx<0)return;
+      const [col]=TCOLS.splice(idx,1);
+      TCOLS.splice(newPos-1,0,col);
+      saveTcolsOrder();
+      renderScColList();
+      renderTable();
+    });
+  });
+
+  /* Cambiar el orden de una columna Personal reordena personalCols en vivo */
+  $('scColList').querySelectorAll('input[data-order-personal]').forEach(inp=>{
+    inp.addEventListener('click',e=>e.stopPropagation());
+    inp.addEventListener('change',()=>{
+      const key=inp.dataset.orderPersonal;
+      let newPos=parseInt(inp.value,10);
+      if(isNaN(newPos))newPos=1;
+      newPos=Math.max(1,Math.min(newPos,personalCols.length));
+      const idx=personalCols.findIndex(c=>c.k===key);
+      if(idx<0)return;
+      const [col]=personalCols.splice(idx,1);
+      personalCols.splice(newPos-1,0,col);
+      savePersonalCols();
+      renderScColList();
+      renderTable();
+    });
+  });
+
+  /* Eliminar un slicer Master: se quita del panel y, si está en la tabla, también de la columna de Control de Backlog */
+  $('scColList').querySelectorAll('[data-del-master]').forEach(btn=>{
+    btn.addEventListener('click',e=>{
+      e.preventDefault();e.stopPropagation();
+      const key=btn.dataset.delMaster;
+      const col=ALL_COLS.find(c=>c.k===key);
+      const label=col?col.l:key;
+      const inTable=tcolsPosOf(key)!==null;
+      const msg=inTable
+        ? `¿Eliminar el slicer "${label}"? También desaparecerá como columna de la tabla de Control de Backlog.`
+        : `¿Eliminar el slicer "${label}"?`;
+      if(!confirm(msg))return;
+      const ai=ALL_COLS.findIndex(c=>c.k===key); if(ai>=0)ALL_COLS.splice(ai,1);
+      const ti=TCOLS.findIndex(c=>c.k===key); if(ti>=0)TCOLS.splice(ti,1);
+      sCols=sCols.filter(k=>k!==key);
+      delete sSel[key];
+      localStorage.setItem(LSC,JSON.stringify(sCols));
+      saveTcolsOrder();
+      if(slicerRenames[key]){delete slicerRenames[key];saveSlicerRenames();}
+      try{
+        const saved=JSON.parse(localStorage.getItem(LS_CUSTOM_COLS)||'[]').filter(c=>c.k!==key);
+        saveCustomCols(saved);
+      }catch(e){}
+      renderScColList();
+      renderSlicers();
+      renderTable();
+    });
+  });
+
+  /* Eliminar una columna Personal: se quita del panel, de la tabla y se borran sus valores guardados */
+  $('scColList').querySelectorAll('[data-del-personal]').forEach(btn=>{
+    btn.addEventListener('click',e=>{
+      e.preventDefault();e.stopPropagation();
+      const key=btn.dataset.delPersonal;
+      const col=personalCols.find(c=>c.k===key);
+      const label=col?col.l:key;
+      if(!confirm(`¿Eliminar la columna Personal "${label}"? Se perderán los valores guardados de todas las SOT.`))return;
+      personalCols=personalCols.filter(c=>c.k!==key);
+      savePersonalCols();
+      try{const rm=getRelations();delete rm[key];saveRelations(rm);}catch(e){}
+      sCols=sCols.filter(k=>k!==key);
+      delete sSel[key];
+      localStorage.setItem(LSC,JSON.stringify(sCols));
+      try{
+        const vals=getPersonalValues();
+        Object.keys(vals).forEach(k=>{ if(k.endsWith('::'+key)) delete vals[k]; });
+        localStorage.setItem(LS_PERSONAL_VALUES,JSON.stringify(vals));
+      }catch(e){}
+      renderScColList();
+      renderSlicers();
+      renderTable();
+    });
+  });
+}
+$('scClose')?.addEventListener('click',()=>scModal.classList.remove('open'));
+$('scCancel')?.addEventListener('click',()=>scModal.classList.remove('open'));
+scModal?.addEventListener('click',e=>{if(e.target===scModal)scModal.classList.remove('open');});
+$('btnCfgSlicers')?.addEventListener('click',()=>{renderScColList();scModal.classList.add('open');});
+$('scApply')?.addEventListener('click',()=>{
+  const ch=Array.from($('scColList').querySelectorAll('input:checked')).map(cb=>cb.id.replace('sck_',''));
+  if(!ch.length){alert('Selecciona al menos 1.');return;}
+  sCols=ch;const keep=new Set(sCols);
+  Object.keys(sSel).forEach(k=>{if(!keep.has(k))delete sSel[k];});
+  sCols.forEach(k=>{if(!sSel[k])sSel[k]=new Set();});
+  localStorage.setItem(LSC,JSON.stringify(sCols));
+  scModal.classList.remove('open');renderSlicers();renderTable();});
+
+/* ── Nueva Slicer: agrega una columna de la Data Maestra como slicer + columna en Control de Backlog ── */
+const LS_CUSTOM_COLS='cck_custom_cols_v1';
+function loadCustomCols(){
+  try{
+    const saved=JSON.parse(localStorage.getItem(LS_CUSTOM_COLS)||'[]');
+    saved.forEach(c=>{
+      if(!ALL_COLS.some(x=>x.k===c.k))ALL_COLS.push({k:c.k,l:c.l});
+      if(!TCOLS.some(x=>x.k===c.k)){
+        let pos=(typeof c.pos==='number')?c.pos:TCOLS.length+1;
+        pos=Math.max(1,Math.min(pos,TCOLS.length+1));
+        TCOLS.splice(pos-1,0,{k:c.k,l:c.l});
+      }
+    });
+  }catch(e){}
+}
+function saveCustomCols(list){localStorage.setItem(LS_CUSTOM_COLS,JSON.stringify(list));}
+function humanize(k){return k.replace(/_/g,' ').replace(/\b\w/g,ch=>ch.toUpperCase());}
+
+const scNewModal=$('scNewModal');
+function openNewSlicerModal(){
+  const used=new Set(ALL_COLS.map(c=>c.k));
+  const opts=(window.EXPECTED_HEADERS||[]).filter(h=>!used.has(h));
+  $('scNewCol').innerHTML=opts.map(h=>`<option value="${esc(h)}">${esc(humanize(h))} (${esc(h)})</option>`).join('')
+    ||'<option value="">— No hay columnas disponibles —</option>';
+  $('scNewLabel').value='';
+  $('scNewOrder').value='';
+  $('scNewOrder').max=TCOLS.length+1;
+  $('scNewOrder').placeholder='Ej: 1 = primera columna (máx. '+(TCOLS.length+1)+', vacío = al final)';
+  $('scNewErr').style.display='none';
+  scNewModal.classList.add('open');
+}
+function closeNewSlicerModal(){scNewModal.classList.remove('open');}
+$('btnNewSlicer')?.addEventListener('click',openNewSlicerModal);
+$('scNewClose')?.addEventListener('click',closeNewSlicerModal);
+$('scNewCancel')?.addEventListener('click',closeNewSlicerModal);
+scNewModal?.addEventListener('click',e=>{if(e.target===scNewModal)closeNewSlicerModal();});
+$('scNewAdd')?.addEventListener('click',()=>{
+  const key=$('scNewCol').value.trim();
+  const label=$('scNewLabel').value.trim();
+  const err=$('scNewErr');
+  if(!key){err.textContent='Selecciona una columna de origen.';err.style.display='block';return;}
+  if(!label){err.textContent='Ingresa el nombre que se mostrará.';err.style.display='block';return;}
+  if(ALL_COLS.some(c=>c.k===key)){err.textContent='Esa columna ya está agregada.';err.style.display='block';return;}
+  const newCol={k:key,l:label};
+  ALL_COLS.push(newCol);
+  // Posición en la tabla: 1-indexado, vacío = al final
+  const orderRaw=$('scNewOrder').value.trim();
+  let pos=orderRaw?parseInt(orderRaw,10):TCOLS.length+1;
+  if(isNaN(pos))pos=TCOLS.length+1;
+  pos=Math.max(1,Math.min(pos,TCOLS.length+1));
+  TCOLS.splice(pos-1,0,newCol);
+  try{
+    const saved=JSON.parse(localStorage.getItem(LS_CUSTOM_COLS)||'[]');
+    saved.push({...newCol,pos});saveCustomCols(saved);
+  }catch(e){saveCustomCols([{...newCol,pos}]);}
+  closeNewSlicerModal();
+  renderScColList();       // refresca la lista dentro del modal de slicers
+  renderTable();           // la nueva columna aparece ya en Control de Backlog
+});
+
+/* ============================================================
+   COLUMNAS PERSONAL — de edición manual, no vienen de la Data Maestra.
+   Se ubican a la izquierda de SOT y aparecen con doble clic en "#".
+   ============================================================ */
+const LS_PERSONAL_COLS='cck_personal_cols_v1';
+const LS_PERSONAL_VALUES='cck_personal_values_v1';
+const LS_PERSONAL_VISIBLE='cck_personal_visible_v1';
+let personalCols=[];
+function slugify(s){return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+  .replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'')||'col';}
+function loadPersonalCols(){
+  try{personalCols=JSON.parse(localStorage.getItem(LS_PERSONAL_COLS)||'[]');}catch(e){personalCols=[];}
+}
+function savePersonalCols(){localStorage.setItem(LS_PERSONAL_COLS,JSON.stringify(personalCols));}
+function getPersonalValues(){try{return JSON.parse(localStorage.getItem(LS_PERSONAL_VALUES)||'{}');}catch(e){return{};}}
+function setPersonalValue(sot,colKey,val){
+  const vals=getPersonalValues();
+  vals[sot+'::'+colKey]=val;
+  localStorage.setItem(LS_PERSONAL_VALUES,JSON.stringify(vals));
+}
+function personalVisible(){return localStorage.getItem(LS_PERSONAL_VISIBLE)==='1';}
+function setPersonalVisible(v){localStorage.setItem(LS_PERSONAL_VISIBLE,v?'1':'0');}
+loadPersonalCols();
+
+const scPersonalModal=$('scPersonalModal');
+function openPersonalModal(){
+  $('scPersonalLabel').value='';
+  $('scPersonalOrder').value='';
+  $('scPersonalOrder').max=personalCols.length+1;
+  $('scPersonalOrder').placeholder='Ej: 1 = primera (máx. '+(personalCols.length+1)+', vacío = al final)';
+  $('scPersonalErr').style.display='none';
+  scPersonalModal.classList.add('open');
+}
+function closePersonalModal(){scPersonalModal.classList.remove('open');}
+$('btnNewPersonal')?.addEventListener('click',openPersonalModal);
+$('scPersonalClose')?.addEventListener('click',closePersonalModal);
+$('scPersonalCancel')?.addEventListener('click',closePersonalModal);
+scPersonalModal?.addEventListener('click',e=>{if(e.target===scPersonalModal)closePersonalModal();});
+$('scPersonalAdd')?.addEventListener('click',()=>{
+  const label=$('scPersonalLabel').value.trim();
+  const err=$('scPersonalErr');
+  if(!label){err.textContent='Ingresa el nombre de la columna.';err.style.display='block';return;}
+  let key='personal_'+slugify(label);
+  let n=2;while(personalCols.some(c=>c.k===key)){key='personal_'+slugify(label)+'_'+n;n++;}
+  // Posición entre las columnas Personal: 1-indexado, vacío = al final
+  const orderRaw=$('scPersonalOrder').value.trim();
+  let pos=orderRaw?parseInt(orderRaw,10):personalCols.length+1;
+  if(isNaN(pos))pos=personalCols.length+1;
+  pos=Math.max(1,Math.min(pos,personalCols.length+1));
+  personalCols.splice(pos-1,0,{k:key,l:label});
+  savePersonalCols();
+  setPersonalVisible(true); // al crear una, se muestran de inmediato para poder llenarla
+  closePersonalModal();
+  renderScColList();
+  renderTable();
+});
+
+/* ============================================================
+   RELACIONAR — copia el valor de una columna Master hacia una
+   columna Personal, fila por fila, para todo el backlog actual.
+   Luego el valor queda libre para editarse en la columna Personal.
+   ============================================================ */
+const LS_PERSONAL_RELATIONS='cck_personal_relations_v1';
+function getRelations(){try{return JSON.parse(localStorage.getItem(LS_PERSONAL_RELATIONS)||'{}');}catch(e){return{};}}
+function saveRelations(r){localStorage.setItem(LS_PERSONAL_RELATIONS,JSON.stringify(r));}
+/* Re-aplica todas las relaciones guardadas (Personal ← Master) a todas las SOT. Devuelve nº de relaciones aplicadas */
+function applyRelations(){
+  const rel=getRelations();let applied=0;
+  const vals=getPersonalValues();
+  Object.keys(rel).forEach(pk=>{
+    const mk=rel[pk];
+    if(!personalCols.some(c=>c.k===pk))return;
+    rows.forEach(r=>{
+      const sot=(r.codsolot||'').trim();if(!sot)return;
+      vals[sot+'::'+pk]=r[mk]!=null?String(r[mk]):'';
+    });
+    applied++;
+  });
+  if(applied)localStorage.setItem(LS_PERSONAL_VALUES,JSON.stringify(vals));
+  return applied;
+}
+const relateModal=$('relateModal');
+function openRelateModal(){
+  const mSel=$('relateMasterSel'), pSel=$('relatePersonalSel'), err=$('relateErr');
+  err.style.display='none';
+  mSel.innerHTML = ALL_COLS.slice().sort((a,b)=>a.l.localeCompare(b.l,'es')).map(c=>`<option value="${esc(c.k)}">${esc(c.l)}</option>`).join('');
+  if(!personalCols.length){
+    pSel.innerHTML = '<option value="">— Crea una columna Personal primero —</option>';
+  }else{
+    pSel.innerHTML = personalCols.map(c=>`<option value="${esc(c.k)}">${esc(c.l)}</option>`).join('');
+  }
+  relateModal.classList.add('open');
+}
+function closeRelateModal(){relateModal?.classList.remove('open');}
+$('btnRelateSlicers')?.addEventListener('click',openRelateModal);
+$('relateClose')?.addEventListener('click',closeRelateModal);
+$('relateCancel')?.addEventListener('click',closeRelateModal);
+relateModal?.addEventListener('click',e=>{if(e.target===relateModal)closeRelateModal();});
+$('relateApply')?.addEventListener('click',()=>{
+  const err=$('relateErr');
+  const mk=$('relateMasterSel').value, pk=$('relatePersonalSel').value;
+  if(!mk){err.textContent='Selecciona la columna Master de origen.';err.style.display='block';return;}
+  if(!pk){err.textContent='Selecciona (o crea primero) la columna Personal de destino.';err.style.display='block';return;}
+  if(!personalCols.some(c=>c.k===pk)){err.textContent='Esa columna Personal ya no existe.';err.style.display='block';return;}
+  if(!rows.length){err.textContent='No hay backlog cargado para relacionar.';err.style.display='block';return;}
+  const vals=getPersonalValues();
+  let count=0;
+  rows.forEach(r=>{
+    const sot=(r.codsolot||'').trim();
+    if(!sot)return;
+    vals[sot+'::'+pk] = r[mk]!=null ? String(r[mk]) : '';
+    count++;
+  });
+  localStorage.setItem(LS_PERSONAL_VALUES, JSON.stringify(vals));
+  const relMap=getRelations();relMap[pk]=mk;saveRelations(relMap); // se recuerda para "Actualizar"
+  setPersonalVisible(true);
+  closeRelateModal();
+  renderTable();
+  const mLabel=(ALL_COLS.find(c=>c.k===mk)||{}).l||mk;
+  const pLabel=(personalCols.find(c=>c.k===pk)||{}).l||pk;
+  window.showToast?.('success','🔗','Slicers relacionados', `"${esc(mLabel)}" se copió hacia "${esc(pLabel)}" en ${count} fila(s). Ya puedes editarlo libremente.`);
+});
+
+/* Doble clic en el encabezado "#" muestra/oculta las columnas Personal */
+$('rvHead')?.addEventListener('dblclick',e=>{
+  if(e.target.closest('.col-resize-handle'))return;
+  if(!e.target.closest('th.thn'))return;
+  if(!personalCols.length){alert('Aún no hay columnas Personal. Créalas desde ⚙ Columnas → ➕ Personal.');return;}
+  setPersonalVisible(!personalVisible());
+  renderTable();
+});
+
+/* ============================================================
+   INDICADOR "SOTs NUEVAS" — resultado de la última comparación.
+   Al hacer clic, se SELECCIONAN esas filas directamente en la tabla
+   de Control de Backlog (ya no es una ventana flotante).
+   ============================================================ */
+const LS_NEW_SOT_RESULT='cck_new_sot_result_v1';
+let newSotHighlightSet=null; // Set de SOT resaltadas en la tabla, o null
+let newSotFilterOnly=false;  // true = la tabla muestra ÚNICAMENTE las SOT nuevas
+function getNewSotResult(){
+  try{return JSON.parse(localStorage.getItem(LS_NEW_SOT_RESULT)||'null');}catch(e){return null;}
+}
+function renderNewSotBadge(){
+  const btn=$('btnNewSotBadge'),cnt=$('newSotCount');
+  if(!btn)return;
+  // Sin ningún backlog guardado en el Registro, no puede existir una
+  // comparación válida (referencia vs. actual) — se limpia cualquier
+  // resultado obsoleto y el badge nunca se muestra.
+  let historyCount=0;
+  try{historyCount=(JSON.parse(localStorage.getItem('cck_backlog_history_v1')||'[]')).length;}catch(e){}
+  if(historyCount===0){
+    try{localStorage.removeItem('cck_new_sot_result_v1');}catch(e){}
+    btn.style.display='none';
+    return;
+  }
+  const res=getNewSotResult();
+  if(res && res.count>0){
+    if(cnt)cnt.textContent=res.count;
+    btn.style.display='';
+  }else{
+    btn.style.display='none';
+  }
+}
+window.renderNewSotBadge=renderNewSotBadge;
+
+function selectNewSotInTable(){
+  const res=getNewSotResult();
+  if(!res||!res.count)return;
+  // Limpia los filtros de slicers para asegurar que todas las SOT nuevas queden visibles
+  sCols.forEach(k=>{if(sSel[k])sSel[k].clear();});
+  renderSlicers();
+  newSotHighlightSet=new Set(res.sots.map(s=>s.sot));
+  newSotFilterOnly=true; // la tabla muestra ÚNICAMENTE estas SOT, no todo el backlog
+  renderTable();
+  requestAnimationFrame(()=>{
+    document.querySelector('#rvBody tr.row-newsot')?.scrollIntoView({behavior:'smooth',block:'center'});
+  });
+}
+$('btnNewSotBadge')?.addEventListener('click',selectNewSotInTable);
+
+/* ── Redimensionar columnas arrastrando el borde del encabezado (estilo Excel) ── */
+(function(){
+  let resizing=null; // {key, startX, startWidth, colEl, handleEl}
+  document.addEventListener('mousedown',e=>{
+    const handle=e.target.closest('.col-resize-handle');
+    if(!handle)return;
+    e.preventDefault();e.stopPropagation();
+    const key=handle.dataset.colkey;
+    const cg=$('rvColgroup');
+    const colEl=cg?cg.querySelector(`col[data-colkey="${CSS.escape(key)}"]`):null;
+    if(!colEl)return;
+    resizing={key,startX:e.clientX,startWidth:colEl.offsetWidth||getColWidth(key),colEl};
+    handle.classList.add('resizing');
+    document.body.style.cursor='col-resize';
+  });
+  document.addEventListener('mousemove',e=>{
+    if(!resizing)return;
+    const delta=e.clientX-resizing.startX;
+    const newW=Math.max(32,resizing.startWidth+delta);
+    resizing.colEl.style.width=newW+'px';
+  });
+  document.addEventListener('mouseup',()=>{
+    if(!resizing)return;
+    const w=parseInt(resizing.colEl.style.width,10);
+    colWidths[resizing.key]=w;
+    saveColWidths();
+    document.querySelectorAll('.col-resize-handle.resizing').forEach(h=>h.classList.remove('resizing'));
+    document.body.style.cursor='';
+    resizing=null;
+  });
+})();
+/* Doble clic activa la edición de una celda Personal (un solo clic muestra
+   la ventana flotante de contenido, igual que las columnas Master) */
+document.addEventListener('dblclick',e=>{
+  const td=e.target.closest && e.target.closest('td.tdp');
+  if(!td)return;
+  td.setAttribute('contenteditable','true');
+  td.focus();
+  // coloca el cursor al final del texto
+  const range=document.createRange();
+  range.selectNodeContents(td);
+  range.collapse(false);
+  const sel=window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+});
+
+/* Guardar ediciones de celdas Personal (blur no burbujea → se usa captura)
+   y volver a modo solo-lectura para que el próximo clic muestre el tooltip */
+document.addEventListener('blur',e=>{
+  const td=e.target.closest && e.target.closest('td.tdp');
+  if(!td)return;
+  setPersonalValue(td.dataset.sot, td.dataset.pk, td.textContent.trim());
+  td.setAttribute('contenteditable','false');
+}, true);
+
+/* ── Selección de celdas ── */
+function allC(){return Array.from($('rvBody')?.querySelectorAll('td[data-ri]')||[]);}
+function cAt(ri,ci){return $('rvBody')?.querySelector(`td[data-ri="${ri}"][data-ci="${ci}"]`)||null;}
+function clearSel(){allC().forEach(td=>td.classList.remove('csel','canc'));selA=null;selF=null;updSelInfo();}
+function applySel(){allC().forEach(td=>td.classList.remove('csel','canc'));if(!selA||!selF)return;
+  const r0=Math.min(selA.r,selF.r),r1=Math.max(selA.r,selF.r),c0=Math.min(selA.c,selF.c),c1=Math.max(selA.c,selF.c);
+  for(let r=r0;r<=r1;r++)for(let c=c0;c<=c1;c++){const td=cAt(r,c);if(td)td.classList.add(r===selA.r&&c===selA.c?'canc':'csel');}
+  updSelInfo();}
+function updSelInfo(){const el=$('rvSelInfo');if(!el)return;
+  if(!selA||!selF){el.innerHTML='';return;}
+  el.innerHTML=`<b>${Math.abs(selF.r-selA.r)+1}×${Math.abs(selF.c-selA.c)+1}</b> · ${TCOLS[Math.min(selA.c,selF.c)]?.l||''} → ${TCOLS[Math.max(selA.c,selF.c)]?.l||''}`;}
+
+document.addEventListener('mousedown',e=>{
+  const td=e.target.closest('#rvBody td[data-ri]');if(!td)return;
+  const ri=+td.dataset.ri,ci=+td.dataset.ci;
+  if(e.shiftKey&&selA){selF={r:ri,c:ci};}else{selA={r:ri,c:ci};selF={r:ri,c:ci};isDrag=true;}
+  applySel();e.preventDefault();});
+document.addEventListener('mousemove',e=>{
+  if(!isDrag||!selA)return;
+  const td=e.target.closest('#rvBody td[data-ri]');if(!td)return;
+  selF={r:+td.dataset.ri,c:+td.dataset.ci};applySel();e.preventDefault();});
+document.addEventListener('mouseup',()=>{isDrag=false;});
+
+function doCopy(){if(!selA||!selF){alert('Selecciona un rango.');return;}
+  const r0=Math.min(selA.r,selF.r),r1=Math.max(selA.r,selF.r),c0=Math.min(selA.c,selF.c),c1=Math.max(selA.c,selF.c);
+  const lines=[];
+  for(let r=r0;r<=r1;r++){const row=fRows[r];if(!row)continue;lines.push(TCOLS.slice(c0,c1+1).map(c=>(row[c.k]||'')).join('\t'));}
+  navigator.clipboard.writeText(lines.join('\n')).then(()=>{
+    const b=$('btnCopy');if(!b)return;
+    b.textContent='✔ Copiado';b.classList.add('copied');
+    setTimeout(()=>{b.textContent='⎘ Copiar';b.classList.remove('copied');},1500);}).catch(()=>{});}
+document.addEventListener('keydown',e=>{
+  /* Ctrl+C o Ctrl+V (algunas personas confunden) — copiar selección */
+  if((e.ctrlKey||e.metaKey)&&(e.key==='c'||e.key==='C')&&selA&&selF){
+    e.preventDefault();
+    doCopy();
+  }
+});
+/* También al hacer doble clic en celda sin selección múltiple — copia esa sola celda */
+document.addEventListener('dblclick',e=>{
+  const td=e.target.closest('#rvBody td[data-ri]');
+  if(!td)return;
+  const text=(td.textContent||'').trim();
+  if(!text)return;
+  navigator.clipboard.writeText(text).then(()=>{
+    td.style.outline='2px solid var(--signal-teal)';
+    td.style.outlineOffset='-2px';
+    setTimeout(()=>{td.style.outline='';td.style.outlineOffset='';},900);
+  }).catch(()=>{});
+});
+$('btnCopy')?.addEventListener('click',doCopy);
+
+/* ── Sincronizar con script original ── */
+(function(){const orig=localStorage.setItem.bind(localStorage);
+  localStorage.setItem=function(k,v){orig(k,v);
+    if(k===LS){refreshStatus();
+      if(rv.classList.contains('active')){loadData();buildSels();buildEstChips(rows);renderSlicers();renderTable();}}}; })();
+
+/* ============================================================
+   CONTROL DE PENDIENTES — tablero Kanban ágil
+   Columnas de "Estado de trabajo" renombrables y redimensionables,
+   tareas asociadas a una SOT o a un Cliente (varias SOT elegidas),
+   con comentario y alerta (visual/sonido) editables, y arrastre
+   libre entre columnas.
+   ============================================================ */
+const LS_KANBAN_COLS='cck_kanban_cols_v1';
+const LS_KANBAN_TASKS='cck_kanban_tasks_v1';
+const LS_KANBAN_COL_WIDTHS='cck_kanban_col_widths_v1';
+let kanbanCols=[], kanbanTasks=[], kanbanColWidths={};
+
+function defaultKanbanCols(){
+  return [
+    {id:'k_todo',   name:'Por Hacer'},
+    {id:'k_proc',   name:'En Proceso'},
+    {id:'k_block',  name:'Bloqueado'},
+    {id:'k_done',   name:'Completado'},
+  ];
+}
+function loadKanban(){
+  try{kanbanCols=JSON.parse(localStorage.getItem(LS_KANBAN_COLS)||'null')||defaultKanbanCols();}
+  catch(e){kanbanCols=defaultKanbanCols();}
+  try{kanbanTasks=JSON.parse(localStorage.getItem(LS_KANBAN_TASKS)||'[]');}
+  catch(e){kanbanTasks=[];}
+  try{kanbanColWidths=JSON.parse(localStorage.getItem(LS_KANBAN_COL_WIDTHS)||'{}');}
+  catch(e){kanbanColWidths={};}
+}
+function saveKanbanCols(){localStorage.setItem(LS_KANBAN_COLS, JSON.stringify(kanbanCols));}
+function saveKanbanTasks(){localStorage.setItem(LS_KANBAN_TASKS, JSON.stringify(kanbanTasks));}
+function saveKanbanColWidths(){localStorage.setItem(LS_KANBAN_COL_WIDTHS, JSON.stringify(kanbanColWidths));}
+loadKanban();
+
+function fmtAlertDate(iso){
+  if(!iso)return '';
+  const d=new Date(iso);
+  if(isNaN(d))return '';
+  const pad=n=>n<10?'0'+n:''+n;
+  return pad(d.getDate())+'/'+pad(d.getMonth()+1)+' '+pad(d.getHours())+':'+pad(d.getMinutes());
+}
+
+function renderKanban(){
+  const board=$('kanbanBoard');
+  if(!board)return;
+  if(!kanbanCols.length){kanbanCols=defaultKanbanCols();saveKanbanCols();}
+  const colsHtml=kanbanCols.map(col=>{
+    const tasks=kanbanTasks.filter(t=>t.colId===col.id);
+    const w=kanbanColWidths[col.id];
+    const cardsHtml=tasks.length ? tasks.map(t=>{
+      const badgeCls = t.type==='cliente' ? 'cliente' : 'sot';
+      const badgeIcon = t.type==='cliente' ? '🏢' : '🎫';
+      let alertHtml='';
+      if(t.alert && t.alert.enabled){
+        const icon = t.alert.type==='sonido' ? '🔊' : (t.alert.type==='ambos' ? '🔔' : '👁️');
+        alertHtml = `<span class="kanban-card-alert ${t.alert.fired?'fired':''}">${icon} ${esc(fmtAlertDate(t.alert.when))}</span>`;
+      }
+      const sotsHtml = (t.type==='cliente' && Array.isArray(t.sots) && t.sots.length)
+        ? `<div class="kanban-card-sots">🎫 ${t.sots.length} SOT: ${t.sots.slice(0,4).map(esc).join(', ')}${t.sots.length>4?'…':''}</div>` : '';
+      const commentHtml = t.comment ? `<div class="kanban-card-comment">${esc(t.comment)}</div>` : '';
+      return `<div class="kanban-card" draggable="true" data-task-id="${t.id}">
+        <span class="kanban-card-badge ${badgeCls}">${badgeIcon} ${esc(t.ref||'')}</span>
+        <div class="kanban-card-title">${esc(t.title)}</div>
+        ${sotsHtml}
+        ${commentHtml}
+        <div class="kanban-card-foot">${alertHtml}<button class="kanban-card-del" data-del-task="${t.id}" title="Eliminar tarea">✕</button></div>
+      </div>`;
+    }).join('') : '';
+    return `<div class="kanban-col" data-col-id="${col.id}" style="${w?`width:${w}px;`:''}">
+      <div class="kanban-col-head">
+        <div class="kanban-col-title" contenteditable="true" spellcheck="false" data-col-id="${col.id}">${esc(col.name)}</div>
+        <span class="kanban-col-count">${tasks.length}</span>
+        <button class="kanban-col-del" data-del-col="${col.id}" title="Eliminar columna">🗑</button>
+      </div>
+      <div class="kanban-col-body" data-col-id="${col.id}">${cardsHtml}</div>
+      <div class="kanban-col-resize" data-resize-col="${col.id}" title="Arrastra para cambiar el ancho"></div>
+    </div>`;
+  }).join('');
+  board.innerHTML = colsHtml + `<div class="kanban-addcol" id="kanbanAddColInline">➕ Agregar columna</div>`;
+
+  // Renombrar columna (contenteditable → guarda al perder foco)
+  board.querySelectorAll('.kanban-col-title').forEach(el=>{
+    el.addEventListener('blur',()=>{
+      const id=el.dataset.colId;
+      const col=kanbanCols.find(c=>c.id===id);
+      const val=el.textContent.trim();
+      if(col && val){ col.name=val; saveKanbanCols(); }
+      else if(col){ el.textContent=col.name; }
+    });
+    el.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); el.blur(); } });
+    el.addEventListener('mousedown',e=>e.stopPropagation());
+  });
+
+  // Eliminar columna
+  board.querySelectorAll('[data-del-col]').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const id=btn.dataset.delCol;
+      const n=kanbanTasks.filter(t=>t.colId===id).length;
+      const msg = n>0
+        ? `Esta columna tiene ${n} tarea(s). Al eliminarla también se eliminarán esas tareas. ¿Continuar?`
+        : '¿Eliminar esta columna?';
+      if(!confirm(msg))return;
+      kanbanCols=kanbanCols.filter(c=>c.id!==id);
+      kanbanTasks=kanbanTasks.filter(t=>t.colId!==id);
+      saveKanbanCols();saveKanbanTasks();
+      renderKanban();
+    });
+  });
+
+  // Eliminar tarea
+  board.querySelectorAll('[data-del-task]').forEach(btn=>{
+    btn.addEventListener('click',e=>{
+      e.stopPropagation();
+      const id=btn.dataset.delTask;
+      kanbanTasks=kanbanTasks.filter(t=>t.id!==id);
+      saveKanbanTasks();
+      renderKanban();
+    });
+  });
+
+  // Clic en la tarjeta (fuera del botón eliminar) → abre edición
+  board.querySelectorAll('.kanban-card').forEach(card=>{
+    card.addEventListener('click',e=>{
+      if(e.target.closest('[data-del-task]'))return;
+      openTaskModal(card.dataset.taskId);
+    });
+  });
+
+  // Arrastrar tarjetas entre columnas (HTML5 drag & drop nativo)
+  board.querySelectorAll('.kanban-card').forEach(card=>{
+    card.addEventListener('dragstart',e=>{
+      card.classList.add('dragging');
+      e.dataTransfer.setData('text/plain', card.dataset.taskId);
+      e.dataTransfer.effectAllowed='move';
+    });
+    card.addEventListener('dragend',()=> card.classList.remove('dragging'));
+  });
+  board.querySelectorAll('.kanban-col-body').forEach(body=>{
+    body.addEventListener('dragover',e=>{ e.preventDefault(); body.classList.add('drag-over'); });
+    body.addEventListener('dragleave',()=> body.classList.remove('drag-over'));
+    body.addEventListener('drop',e=>{
+      e.preventDefault();
+      body.classList.remove('drag-over');
+      const taskId=e.dataTransfer.getData('text/plain');
+      const task=kanbanTasks.find(t=>t.id===taskId);
+      if(!task)return;
+      task.colId=body.dataset.colId;
+      saveKanbanTasks();
+      renderKanban();
+    });
+  });
+
+  if(!kanbanTasks.length){
+    board.insertAdjacentHTML('beforeend', kanbanCols.length ? '' : '<div class="kanban-empty">Crea tu primera columna y tarea para empezar.</div>');
+  }
+}
+window.renderKanban=renderKanban;
+
+$('btnAddKanbanCol')?.addEventListener('click',()=>{
+  const id='k_'+Date.now();
+  kanbanCols.push({id, name:'Nueva Columna'});
+  saveKanbanCols();
+  renderKanban();
+  const el=document.querySelector(`.kanban-col-title[data-col-id="${id}"]`);
+  if(el){ el.focus(); document.execCommand && document.execCommand('selectAll',false,null); }
+});
+$('kanbanBoard')?.addEventListener('click',e=>{
+  if(e.target.id==='kanbanAddColInline') $('btnAddKanbanCol')?.click();
+});
+
+/* ── Redimensionar columnas del Kanban arrastrando el borde derecho ── */
+(function(){
+  let resizing=null; // {colId, startX, startWidth, colEl}
+  document.addEventListener('mousedown',e=>{
+    const handle=e.target.closest('.kanban-col-resize');
+    if(!handle)return;
+    e.preventDefault();
+    const colId=handle.dataset.resizeCol;
+    const colEl=handle.closest('.kanban-col');
+    if(!colEl)return;
+    resizing={colId,startX:e.clientX,startWidth:colEl.offsetWidth,colEl};
+    handle.classList.add('resizing');
+  });
+  document.addEventListener('mousemove',e=>{
+    if(!resizing)return;
+    const delta=e.clientX-resizing.startX;
+    const newW=Math.max(220,Math.min(900,resizing.startWidth+delta));
+    resizing.colEl.style.width=newW+'px';
+  });
+  document.addEventListener('mouseup',()=>{
+    if(!resizing)return;
+    const w=parseInt(resizing.colEl.style.width,10);
+    kanbanColWidths[resizing.colId]=w;
+    saveKanbanColWidths();
+    document.querySelectorAll('.kanban-col-resize.resizing').forEach(h=>h.classList.remove('resizing'));
+    resizing=null;
+  });
+})();
+
+/* ── Modal Nueva Tarea / Editar Tarea ── */
+const taskModal=$('taskModal');
+let taskType='sot';
+let taskEditingId=null; // null = creando; si tiene valor, se está editando esa tarea
+let taskClienteSelSots=new Set(); // SOT seleccionadas para la tarea de cliente actual
+
+function populateTaskDatalists(){
+  const sotList=$('taskSotList'), cliList=$('taskClienteList');
+  if(sotList){
+    const seen=new Set();
+    sotList.innerHTML = rows.slice(0,3000).filter(r=>{
+      const k=(r.codsolot||'').trim(); if(!k||seen.has(k))return false; seen.add(k); return true;
+    }).map(r=>`<option value="${esc(r.codsolot)}">${esc(r.descripcion||'')} — ${esc(r.cliente||'')}</option>`).join('');
+  }
+  if(cliList){
+    const uniq=[...new Set(rows.map(r=>(r.cliente||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));
+    cliList.innerHTML = uniq.map(c=>`<option value="${esc(c)}"></option>`).join('');
+  }
+}
+function renderClienteSotChecklist(clienteName){
+  const el=$('taskClienteSotList');
+  if(!el)return;
+  const name=(clienteName||'').trim();
+  if(!name){ el.innerHTML='<span class="sc-empty-hint">Busca un cliente para ver sus SOT.</span>'; return; }
+  const seen=new Set();
+  const sots=rows.filter(r=>{
+    if((r.cliente||'').trim().toLowerCase()!==name.toLowerCase())return false;
+    const k=(r.codsolot||'').trim(); if(!k||seen.has(k))return false; seen.add(k); return true;
+  });
+  if(!sots.length){ el.innerHTML='<span class="sc-empty-hint">Ese cliente no tiene SOT en la data cargada.</span>'; return; }
+  el.innerHTML = sots.map(r=>{
+    const k=(r.codsolot||'').trim();
+    return `<label class="task-sot-item">
+      <input type="checkbox" class="task-sot-chk" value="${esc(k)}" ${taskClienteSelSots.has(k)?'checked':''}>
+      <b>${esc(k)}</b><span>${esc(r.descripcion||'')}</span>
+    </label>`;
+  }).join('');
+  el.querySelectorAll('.task-sot-chk').forEach(cb=>{
+    cb.addEventListener('change',()=>{
+      if(cb.checked) taskClienteSelSots.add(cb.value); else taskClienteSelSots.delete(cb.value);
+    });
+  });
+}
+$('taskClienteInput')?.addEventListener('input',e=> renderClienteSotChecklist(e.target.value));
+
+function openTaskModal(editId){
+  populateTaskDatalists();
+  $('taskErr').style.display='none';
+  taskEditingId = editId || null;
+  const existing = editId ? kanbanTasks.find(t=>t.id===editId) : null;
+
+  $('taskModalTitle').textContent = existing ? '✏️ Editar Tarea' : '➕ Nueva Tarea';
+  $('taskSave').textContent = existing ? 'Guardar cambios' : 'Guardar tarea';
+
+  taskType = existing ? existing.type : 'sot';
+  taskClienteSelSots = new Set(existing && existing.type==='cliente' ? (existing.sots||[]) : []);
+
+  const isCliente = taskType==='cliente';
+  $('taskTypeSotBtn').classList.toggle('active', !isCliente);
+  $('taskTypeClienteBtn').classList.toggle('active', isCliente);
+  $('taskSotField').style.display = isCliente ? 'none' : '';
+  $('taskClienteField').style.display = isCliente ? '' : 'none';
+
+  $('taskSotInput').value = (existing && existing.type==='sot') ? existing.ref : '';
+  $('taskClienteInput').value = (existing && existing.type==='cliente') ? existing.ref : '';
+  renderClienteSotChecklist($('taskClienteInput').value);
+
+  $('taskTitleInput').value = existing ? existing.title : '';
+  $('taskCommentInput').value = existing ? (existing.comment||'') : '';
+
+  const sel=$('taskColSelect');
+  if(sel) sel.innerHTML = kanbanCols.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
+  if(existing) sel.value = existing.colId;
+
+  const alertEnabled = existing ? !!(existing.alert && existing.alert.enabled) : false;
+  $('taskAlertEnabled').checked = alertEnabled;
+  $('taskAlertFields').style.display = alertEnabled ? '' : 'none';
+  $('taskAlertType').value = existing && existing.alert ? existing.alert.type : 'visual';
+  $('taskAlertDate').value = existing && existing.alert ? existing.alert.when : '';
+
+  taskModal.classList.add('open');
+}
+window.openTaskModal = openTaskModal;
+function closeTaskModal(){taskModal?.classList.remove('open'); taskEditingId=null;}
+$('btnAddKanbanTask')?.addEventListener('click',()=>openTaskModal(null));
+$('taskClose')?.addEventListener('click',closeTaskModal);
+$('taskCancel')?.addEventListener('click',closeTaskModal);
+taskModal?.addEventListener('click',e=>{if(e.target===taskModal)closeTaskModal();});
+$('taskTypeSotBtn')?.addEventListener('click',()=>{
+  taskType='sot';
+  $('taskTypeSotBtn').classList.add('active');$('taskTypeClienteBtn').classList.remove('active');
+  $('taskSotField').style.display='';$('taskClienteField').style.display='none';
+});
+$('taskTypeClienteBtn')?.addEventListener('click',()=>{
+  taskType='cliente';
+  $('taskTypeClienteBtn').classList.add('active');$('taskTypeSotBtn').classList.remove('active');
+  $('taskClienteField').style.display='';$('taskSotField').style.display='none';
+  renderClienteSotChecklist($('taskClienteInput').value);
+});
+$('taskAlertEnabled')?.addEventListener('change',e=>{
+  $('taskAlertFields').style.display=e.target.checked?'':'none';
+});
+$('taskSave')?.addEventListener('click',()=>{
+  const err=$('taskErr');
+  const title=$('taskTitleInput').value.trim();
+  const ref = taskType==='sot' ? $('taskSotInput').value.trim() : $('taskClienteInput').value.trim();
+  if(!ref){ err.textContent = taskType==='sot' ? 'Selecciona o ingresa una SOT.' : 'Selecciona o ingresa un cliente.'; err.style.display='block'; return; }
+  if(taskType==='cliente' && taskClienteSelSots.size===0){ err.textContent='Selecciona al menos una SOT de ese cliente.'; err.style.display='block'; return; }
+  if(!title){ err.textContent='Ingresa el título de la tarea.'; err.style.display='block'; return; }
+  const colId=$('taskColSelect').value || (kanbanCols[0] && kanbanCols[0].id);
+  if(!colId){ err.textContent='Primero crea al menos una columna.'; err.style.display='block'; return; }
+  const alertEnabled=$('taskAlertEnabled').checked;
+  const alertWhen=$('taskAlertDate').value;
+  if(alertEnabled && !alertWhen){ err.textContent='Selecciona la fecha y hora de la alerta.'; err.style.display='block'; return; }
+  const comment=$('taskCommentInput').value.trim();
+
+  if(taskEditingId){
+    const t=kanbanTasks.find(x=>x.id===taskEditingId);
+    if(t){
+      t.type=taskType; t.ref=ref; t.title=title; t.comment=comment; t.colId=colId;
+      t.sots = taskType==='cliente' ? [...taskClienteSelSots] : undefined;
+      const prevWhen = t.alert ? t.alert.when : '';
+      const stillFired = alertEnabled && t.alert && t.alert.fired && prevWhen===alertWhen;
+      t.alert = { enabled:alertEnabled, type:$('taskAlertType').value, when:alertEnabled?alertWhen:'', fired: alertEnabled ? !!stillFired : false };
+    }
+  }else{
+    const task={
+      id:'t_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),
+      type:taskType, ref, title, comment, colId,
+      sots: taskType==='cliente' ? [...taskClienteSelSots] : undefined,
+      alert:{ enabled:alertEnabled, type:$('taskAlertType').value, when:alertEnabled?alertWhen:'', fired:false },
+      createdAt:Date.now()
+    };
+    kanbanTasks.push(task);
+  }
+  saveKanbanTasks();
+  closeTaskModal();
+  renderKanban();
+});
+
+/* ── Verificación periódica de alertas (visual y/o sonido) ── */
+function playTaskBeep(){
+  try{
+    const ctx=new (window.AudioContext||window.webkitAudioContext)();
+    const o=ctx.createOscillator(), g=ctx.createGain();
+    o.type='sine'; o.frequency.value=880;
+    o.connect(g); g.connect(ctx.destination);
+    g.gain.setValueAtTime(0.001,ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.18,ctx.currentTime+0.02);
+    g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.4);
+    o.start(); o.stop(ctx.currentTime+0.42);
+    setTimeout(()=>{ try{ctx.close();}catch(e){} },600);
+  }catch(e){}
+}
+function checkKanbanAlerts(){
+  if(!kanbanTasks.length)return;
+  const now=Date.now();
+  let changed=false;
+  kanbanTasks.forEach(t=>{
+    if(!t.alert||!t.alert.enabled||t.alert.fired||!t.alert.when)return;
+    const due=new Date(t.alert.when).getTime();
+    if(!isNaN(due) && due<=now){
+      t.alert.fired=true; changed=true;
+      const col=kanbanCols.find(c=>c.id===t.colId);
+      if(t.alert.type==='visual'||t.alert.type==='ambos'){
+        window.showToast?.('info','🔔','Alerta de tarea', esc(t.title)+' ('+esc(t.ref)+') — columna "'+esc(col?col.name:'')+'"', 8000);
+      }
+      if(t.alert.type==='sonido'||t.alert.type==='ambos'){
+        playTaskBeep();
+      }
+    }
+  });
+  if(changed){
+    saveKanbanTasks();
+    if(pv && pv.classList.contains('active')) renderKanban();
+  }
+}
+setInterval(checkKanbanAlerts, 20000);
+setTimeout(checkKanbanAlerts, 2000);
+
+/* ── INIT ── */
+(function(){
+  loadCustomCols();
+  applyTcolsOrder();
+  // Asegura que TODA columna visible en la tabla (TCOLS) aparezca también en el
+  // panel de Slicers Master con su número de columna, aunque no se haya
+  // agregado explícitamente como slicer (ej. "Proyecto").
+  TCOLS.forEach(c=>{ if(!ALL_COLS.some(x=>x.k===c.k)) ALL_COLS.push({k:c.k,l:c.l}); });
+  applySlicerRenames();
+  try{sCols=JSON.parse(localStorage.getItem(LSC)||'null')||['cliente','tipotrabajo','tiposervicio','zona','estproyecto'];}
+  catch(e){sCols=['cliente','tipotrabajo','tiposervicio','zona','estproyecto'];}
+  sCols.forEach(k=>{sSel[k]=new Set();});
+  refreshStatus();loadData();
+  setActivePage('reporte');showReporte();
+  if(!rows.length){window.openBacklogModal?.();} // sin data aún: invita a cargar el primer backlog
+})();
+})();
+
+</script>
+<script src="admin.js"></script>
+<script src="reports.js"></script>
+</html>
